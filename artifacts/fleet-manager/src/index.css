@@ -126,10 +126,7 @@
 
 @layer components {
   .fm-app-shell { @apply min-h-[100dvh] bg-background text-foreground; }
-  .fm-status-bar { @apply h-[52px] bg-[#1b2d3c] px-5 flex items-center justify-between text-[10px] font-bold text-white/90; }
-  .fm-status-pill { @apply rounded-full bg-black px-4 py-1 text-[10px] font-medium; }
-  .fm-status-icons { @apply text-[8px] tracking-tight text-white/80; }
-  .fm-main-content { @apply min-h-[calc(100dvh-88px)] pb-20; }
+  .fm-main-content { @apply min-h-[calc(100dvh-68px)] pb-20; }
   .fm-page-header { @apply bg-[#1b2d3c] border-b border-border px-5 py-4 flex items-center justify-between; }
   .fm-page-header h1 { @apply text-[27px] font-black tracking-tight; }
   .fm-page-header p { @apply text-sm text-muted-foreground mt-1; }
@@ -228,7 +225,7 @@
   .fm-tab-row { @apply flex border-b border-border bg-[#1b2d3c]; }
   .fm-tab { @apply flex-1 border-b-[3px] border-transparent py-4 text-center text-lg font-bold text-muted-foreground; }
   .fm-tab.is-active { @apply border-primary text-primary; }
-  .fm-calculator-page { @apply flex h-[calc(100dvh-52px)] min-h-0 flex-col overflow-hidden bg-background pb-[68px]; }
+  .fm-calculator-page { @apply flex h-[calc(100dvh-68px)] min-h-0 flex-col overflow-hidden bg-background pb-2; }
   .fm-calculator-header { @apply flex h-14 shrink-0 items-center gap-3 px-7 text-[27px] font-black; }
   .fm-calculator-display { @apply mx-5 mt-1 flex h-[clamp(112px,19dvh,150px)] shrink-0 items-end justify-end rounded-[22px] border border-border bg-card p-5 text-6xl font-black; }
   .fm-calculator-grid { @apply grid min-h-0 flex-1 grid-cols-4 grid-rows-5 gap-2 px-5 py-3; }

@@ -26,12 +26,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="fm-app-shell">
-      <div className="fm-status-bar" aria-hidden="true">
-        <span>{new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-        <span className="fm-status-pill"><span>⌁</span> 1 device</span>
-        <span className="fm-status-icons">4.00&nbsp; KB/s&nbsp; 5G&nbsp; ◌</span>
-      </div>
-
       <main className="fm-main-content">
         {children}
       </main>
