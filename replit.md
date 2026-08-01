@@ -1,6 +1,6 @@
-# [Project name]
+# Fleet Manager
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Fleet Manager is a mobile-first operations app for small fleet owners to track vehicles, daily work, fuel, drivers, customers, khata balances, receipts, and profitability.
 
 ## Run & Operate
 
@@ -22,15 +22,20 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/fleet-manager/src/pages/` — main mobile screens for home, fleet, logs, khata, fuel, analytics, drivers, calculator, and settings
+- `artifacts/fleet-manager/src/lib/store.tsx` — local-first fleet data model and persistence
+- `artifacts/fleet-manager/src/lib/supabase.ts` — Supabase browser client and Google OAuth configuration
+- `artifacts/fleet-manager/src/index.css` — industrial yellow/steel visual theme
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first milestone is local-first so the app remains usable offline and keeps records across reloads.
+- Supabase is used for Google OAuth and logout; fleet entities are currently stored in local browser storage.
+- Khata charges are linked to work logs and vehicles so receipts and payment QR amounts are derived from recorded work.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can register vehicles, record work and fuel by vehicle/date, assign drivers, track driver pay, manage customer khata ledgers, generate UPI payment QR codes, download receipt text, view vehicle profitability, use a persistent calculator, and save business details/logo for receipts.
 
 ## User preferences
 

@@ -1,0 +1,1 @@
+- [Fleet Manager milestone](fleet-manager.md) — local-first fleet operations app with Supabase OAuth boundary and linked khata/vehicle records.
