@@ -19,8 +19,6 @@ export default function Settings() {
   const [ownerName, setOwnerName] = useState(state.settings.ownerName || "");
   const [phone, setPhone] = useState(state.settings.phone || "");
   const [address, setAddress] = useState(state.settings.address || "");
-  const [stampAddress, setStampAddress] = useState(state.settings.stampAddress || "");
-  const [stampCity, setStampCity] = useState(state.settings.stampCity || "");
   const [email, setEmail] = useState(state.settings.email || "");
   const [upiId, setUpiId] = useState(state.settings.upiId || "");
   const [bankName, setBankName] = useState(state.settings.bankName || "");
@@ -33,8 +31,6 @@ export default function Settings() {
     setOwnerName(state.settings.ownerName || "");
     setPhone(state.settings.phone || "");
     setAddress(state.settings.address || "");
-    setStampAddress(state.settings.stampAddress || "");
-    setStampCity(state.settings.stampCity || "");
     setEmail(state.settings.email || "");
     setUpiId(state.settings.upiId || "");
     setBankName(state.settings.bankName || "");
@@ -53,7 +49,7 @@ export default function Settings() {
   const handleSave = () => {
     dispatch({ 
       type: 'UPDATE_SETTINGS', 
-      payload: { businessName, companyName, ownerName, phone, address, stampAddress, stampCity, email, upiId, bankName, gstNumber, gstPercentage: Math.max(0, Number(gstPercentage) || 0) }
+      payload: { businessName, companyName, ownerName, phone, address, email, upiId, bankName, gstNumber, gstPercentage: Math.max(0, Number(gstPercentage) || 0) }
     });
     toast({
       title: "Settings Saved",
@@ -121,8 +117,6 @@ export default function Settings() {
           <label className="fm-settings-label">Phone Number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" /></label>
           <label className="fm-settings-label">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" /></label>
           <label className="fm-settings-label">Address<textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="Address" /></label>
-          <label className="fm-settings-label">Stamp Address<textarea value={stampAddress} onChange={e => setStampAddress(e.target.value)} placeholder="Address printed in stamp" /></label>
-          <label className="fm-settings-label">Stamp City<input value={stampCity} onChange={e => setStampCity(e.target.value)} placeholder="Pune" /></label>
         </section>
 
         <section className="fm-settings-card space-y-3">
@@ -170,6 +164,9 @@ export default function Settings() {
             </button>
           </div>
         </section>
+        <div className="pb-3 pt-4 text-center text-xs font-semibold tracking-wide text-muted-foreground opacity-40">
+          App made by Mandar
+        </div>
       </div>
     </Layout>
   );

@@ -1,80 +1,61 @@
-import { InvoiceData } from "@/lib/invoice";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import { createInvoiceHtml, InvoiceData } from "@/lib/invoice";
 
-function escapePdfText(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+function waitForImages(root: HTMLElement) {
+  return Promise.all(Array.from(root.querySelectorAll("img")).map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      image.addEventListener("load", () => resolve(), { once: true });
+      image.addEventListener("error", () => resolve(), { once: true });
+    });
+  }));
 }
 
-function wrap(value: string, width = 88) {
-  const words = value.split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  words.forEach((word) => {
-    if (!word) return;
-    if ((line + " " + word).trim().length > width && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = `${line} ${word}`.trim();
+/**
+ * Render the same styled invoice used by View Receipt into a real PDF.
+ * Keeping one HTML source prevents Share PDF/Download PDF from drifting
+ * into a plain text-only document.
+ */
+export async function createInvoicePdf(data: InvoiceData): Promise<Blob> {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;height:1200px;border:0;opacity:0;pointer-events:none;";
+  frame.srcdoc = createInvoiceHtml(data);
+  document.body.appendChild(frame);
+  try {
+    await new Promise<void>((resolve) => {
+      frame.addEventListener("load", () => resolve(), { once: true });
+      window.setTimeout(resolve, 400);
+    });
+    const documentBody = frame.contentDocument?.body;
+    const sheet = frame.contentDocument?.querySelector(".sheet") as HTMLElement | null;
+    if (!documentBody || !sheet) throw new Error("Receipt preview could not be rendered");
+    await waitForImages(documentBody);
+    const canvas = await html2canvas(sheet, {
+      backgroundColor: "#ffffff",
+      scale: Math.min(2, window.devicePixelRatio || 1.5),
+      useCORS: true,
+      logging: false,
+    });
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imageWidth = pageWidth;
+    const imageHeight = (canvas.height * imageWidth) / canvas.width;
+    const image = canvas.toDataURL("image/jpeg", 0.94);
+    let remainingHeight = imageHeight;
+    let offset = 0;
+    pdf.addImage(image, "JPEG", 0, offset, imageWidth, imageHeight, undefined, "FAST");
+    remainingHeight -= pageHeight;
+    while (remainingHeight > 0) {
+      offset -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(image, "JPEG", 0, offset, imageWidth, imageHeight, undefined, "FAST");
+      remainingHeight -= pageHeight;
     }
-  });
-  if (line) lines.push(line);
-  return lines;
-}
-
-export function createInvoicePdf(data: InvoiceData) {
-  const lines = [
-    data.companyName || data.businessName || "Fleet Manager",
-    data.businessName || "SERVICE INVOICE",
-    data.address ? `Address: ${data.address}` : "",
-    `Invoice ID: ${data.invoiceId}    Issued: ${data.issuedAt} ${data.issuedTime}`,
-    `Customer: ${data.customerName}    Phone: ${data.customerPhone || "—"}`,
-    `Billing address: ${data.customerAddress || data.customerCompany || "—"}`,
-    `Work date range: ${data.workStart} to ${data.workEnd}`,
-    `Service location: ${data.serviceLocation || "—"}`,
-    "",
-    "PAYMENT SUMMARY",
-    ...data.lines.flatMap((line) => wrap(`${line.date} - ${line.description}: INR ${line.amount.toLocaleString("en-IN")}`)),
-    "",
-    `Subtotal: INR ${(data.subtotal ?? data.total).toLocaleString("en-IN")}`,
-    ...(data.addGst && data.gstAmount ? [`GST (${data.gstPercentage || 0}%): INR ${data.gstAmount.toLocaleString("en-IN")}`] : []),
-    ...(data.payments || []).flatMap((payment) => wrap(`Paid: ${payment.paymentMode || "Payment"}${payment.description ? ` - ${payment.description}` : ""} on ${payment.date}: INR ${payment.amount.toLocaleString("en-IN")}`)),
-    `Grand Total: INR ${data.total.toLocaleString("en-IN")}`,
-    `Amount in words: ${data.total.toLocaleString("en-IN")} rupees only`,
-    "",
-    "PAYMENT DETAILS",
-    `Payment mode: ${data.paymentMode || "—"}`,
-    `Status: ${data.status}`,
-    `Balance due: INR ${data.balanceDue.toLocaleString("en-IN")}`,
-    `Payment date: ${data.paymentDate || "—"}`,
-    `Reference: ${data.paymentReference || "—"}`,
-    "",
-    `Authorized signatory: ${data.ownerName || data.companyName || "—"}`,
-    `GSTIN: ${data.addGst ? data.gstNumber || "—" : "Not applicable"}`,
-  ].filter(Boolean).flatMap(wrap);
-
-  const content: string[] = ["BT", "/F1 10 Tf", "40 800 Td"];
-  lines.forEach((line, index) => {
-    if (index > 0) content.push("0 -14 Td");
-    content.push(`(${escapePdfText(line)}) Tj`);
-  });
-  content.push("ET");
-  const stream = content.join("\n");
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [5 0 R] /Count 1 >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>",
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets[index + 1] = pdf.length;
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach((offset) => { pdf += `${String(offset).padStart(10, "0")} 00000 n \n`; });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return new Blob([pdf], { type: "application/pdf" });
+    return pdf.output("blob");
+  } finally {
+    frame.remove();
+  }
 }

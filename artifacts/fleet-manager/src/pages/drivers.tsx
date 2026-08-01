@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, Driver } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus } from "lucide-react";
+import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link } from "wouter";
 
@@ -11,6 +11,7 @@ export default function Drivers() {
   const [payDriverId, setPayDriverId] = useState<string | null>(null);
   const [historyDriverId, setHistoryDriverId] = useState<string | null>(null);
   const [detailDriverId, setDetailDriverId] = useState<string | null>(null);
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
   const [activeType, setActiveType] = useState<Driver["type"]>("Regular");
   
@@ -20,9 +21,28 @@ export default function Drivers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    dispatch({ type: 'ADD_DRIVER', payload: formData });
+    if (editingDriverId) {
+      dispatch({ type: "UPDATE_DRIVER", payload: { ...formData, id: editingDriverId } });
+    } else {
+      dispatch({ type: 'ADD_DRIVER', payload: formData });
+    }
     setIsAddOpen(false);
+    setEditingDriverId(null);
     setFormData({ name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: "" });
+  };
+
+  const openEditDriver = (driver: Driver) => {
+    setEditingDriverId(driver.id);
+    setFormData({ ...driver });
+    setIsAddOpen(true);
+  };
+
+  const deleteDriver = (driver: Driver) => {
+    if (!window.confirm(`Delete ${driver.name}? Their driver payment history will also be removed, but work logs will remain.`)) return;
+    dispatch({ type: "DELETE_DRIVER", payload: driver.id });
+    if (payDriverId === driver.id) setPayDriverId(null);
+    if (historyDriverId === driver.id) setHistoryDriverId(null);
+    if (detailDriverId === driver.id) setDetailDriverId(null);
   };
 
   const driverLogs = (driverId: string) => state.logs.filter((log) => log.driverId === driverId).sort((a, b) => b.date.localeCompare(a.date));
@@ -49,7 +69,7 @@ export default function Drivers() {
             </DialogTrigger>
             <DialogContent className="w-[90vw] max-w-md rounded-2xl">
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold">Add Driver</DialogTitle>
+                <DialogTitle className="text-xl font-bold">{editingDriverId ? "Edit Driver" : "Add Driver"}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div>
@@ -91,7 +111,7 @@ export default function Drivers() {
                   </div>
                 </div>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
-                  Save Driver
+                  {editingDriverId ? "Save Changes" : "Save Driver"}
                 </button>
               </form>
             </DialogContent>
@@ -123,6 +143,14 @@ export default function Drivers() {
                     {driver.type} • ₹{driver.dailyRate}/day
                   </div>
                    {driver.type === "Temporary" && (driver.startDate || driver.endDate) && <div className="mt-2 text-xs text-muted-foreground">{driver.startDate || "—"} to {driver.endDate || "Open"}</div>}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => openEditDriver(driver)} className="rounded-xl border border-border p-2 text-primary" aria-label={`Edit ${driver.name}`}>
+                    <Pencil size={17} />
+                  </button>
+                  <button type="button" onClick={() => deleteDriver(driver)} className="rounded-xl border border-rose-400/40 p-2 text-rose-300" aria-label={`Delete ${driver.name}`}>
+                    <Trash2 size={17} />
+                  </button>
                 </div>
               </div>
                <div className="flex gap-2 pt-4 border-t border-border/50">

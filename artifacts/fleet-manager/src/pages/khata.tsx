@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus, Users, Phone, Download, Share2, ReceiptText, Search, Trash2,
   ArrowLeft, QrCode, CirclePlus, CheckCircle2, Clock3,
@@ -21,8 +21,12 @@ export default function Khata() {
   const [qrOpen, setQrOpen] = useState(false);
   const [invoicePreview, setInvoicePreview] = useState("");
   const [receiptActionsOpen, setReceiptActionsOpen] = useState(false);
+  const [completeCustomerId, setCompleteCustomerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [khataTab, setKhataTab] = useState<"work" | "payments">("work");
+  const [customerSection, setCustomerSection] = useState<"active" | "completed">("active");
+  const customerPressTimer = useRef<number | null>(null);
+  const customerLongPressed = useRef(false);
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({
     date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash",
@@ -89,7 +93,8 @@ export default function Khata() {
     const amount = Math.max(0, getCustomerBalance(customer));
     const upi = state.settings.upiId || "fleet-owner@upi";
     const amountPart = amount > 0 ? `&am=${amount}` : "";
-    const payload = `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(state.settings.businessName)}${amountPart}&cu=INR`;
+    const companyName = state.settings.companyName || state.settings.businessName || "Fleet Manager";
+    const payload = `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(companyName)}${amountPart}&cu=INR`;
     try {
       const dataUrl = await QRCode.toDataURL(payload, { width: 280, margin: 2, errorCorrectionLevel: "M" });
       setQrDataUrl(dataUrl);
@@ -116,8 +121,6 @@ export default function Khata() {
       phone: state.settings.phone || "",
       email: state.settings.email || "",
       address: state.settings.address || "",
-      stampAddress: state.settings.stampAddress || "",
-      stampCity: state.settings.stampCity || "",
       bankName: state.settings.bankName || "",
       gstNumber: state.settings.gstNumber || "",
       upiId: state.settings.upiId || "",
@@ -156,10 +159,12 @@ export default function Khata() {
       gstAmount,
       addGst: Boolean(customer.addGst && state.settings.gstPercentage),
       balanceDue: getCustomerBalance(customer),
-      status: customer.paymentStatus === "Paid" ? "PAID" : "PENDING",
+      status: customer.paymentStatus === "Paid" ? "PAID" : customer.paymentStatus === "Delay" ? "DELAY" : "PENDING",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
       paymentMode: payments[0]?.paymentMode || "—",
+      delayStartDate: customer.delayStartDate,
+      delayEndDate: customer.delayEndDate,
     };
   };
 
@@ -173,14 +178,14 @@ export default function Khata() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const downloadReceipt = (customer: Customer) => {
+  const downloadReceipt = async (customer: Customer) => {
     const name = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-receipt.pdf`;
-    downloadBlob(createInvoicePdf(getInvoiceData(customer)), name);
+    downloadBlob(await createInvoicePdf(getInvoiceData(customer)), name);
   };
 
   const shareReceipt = async (customer: Customer) => {
     const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-receipt.pdf`;
-    const file = new File([createInvoicePdf(getInvoiceData(customer))], fileName, { type: "application/pdf" });
+    const file = new File([await createInvoicePdf(getInvoiceData(customer))], fileName, { type: "application/pdf" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
         await navigator.share({ title: `${state.settings.businessName} receipt`, text: `Receipt for ${customer.name}`, files: [file] });
@@ -189,7 +194,7 @@ export default function Khata() {
         if ((error as DOMException)?.name === "AbortError") return;
       }
     }
-    downloadReceipt(customer);
+    await downloadReceipt(customer);
   };
 
   const printReceipt = (customer: Customer) => setInvoicePreview(createInvoiceHtml(getInvoiceData(customer)));
@@ -201,6 +206,21 @@ export default function Khata() {
     printWindow.document.open();
     printWindow.document.write(invoicePreview.replace("</body>", `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},250)})</script></body>`));
     printWindow.document.close();
+  };
+
+  const startCustomerPress = (customerId: string) => {
+    customerLongPressed.current = false;
+    if (customerPressTimer.current) window.clearTimeout(customerPressTimer.current);
+    customerPressTimer.current = window.setTimeout(() => {
+      customerLongPressed.current = true;
+      setCompleteCustomerId(customerId);
+      customerPressTimer.current = null;
+    }, 550);
+  };
+
+  const endCustomerPress = () => {
+    if (customerPressTimer.current) window.clearTimeout(customerPressTimer.current);
+    customerPressTimer.current = null;
   };
 
   const downloadQr = async (customer: Customer) => {
@@ -241,7 +261,7 @@ export default function Khata() {
             <ArrowLeft size={24} />
             <span><h1 className="!text-2xl">{selected.name}</h1><p>{selected.phone}</p></span>
           </button>
-          <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => shareReceipt(selected)} aria-label="Share receipt"><Share2 size={20} /></button>
+          <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => void shareReceipt(selected)} aria-label="Share receipt"><Share2 size={20} /></button>
         </div>
         <div className="px-5 py-5 pb-24 space-y-4">
           <section className="fm-card p-4">
@@ -252,9 +272,14 @@ export default function Khata() {
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
-              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: "Delay" } })} className={`rounded-2xl p-3 font-bold ${selected.paymentStatus === "Delay" ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
+              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: selected.paymentStatus === "Delay" ? undefined : "Delay", delayStartDate: selected.paymentStatus === "Delay" ? undefined : today(), delayEndDate: selected.paymentStatus === "Delay" ? undefined : today() } })} className={`rounded-2xl p-3 font-bold ${selected.paymentStatus === "Delay" ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
             </div>
           </section>
+
+          {selected.paymentStatus === "Delay" && <section className="fm-card grid grid-cols-2 gap-3 p-4">
+            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay from<input type="date" value={selected.delayStartDate || ""} onChange={(event) => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayStartDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
+            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay until<input type="date" value={selected.delayEndDate || ""} onChange={(event) => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayEndDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
+          </section>}
 
           {state.settings.gstPercentage ? (
             <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, addGst: !selected.addGst } })} className={`w-full rounded-xl border p-3 text-left text-sm font-bold ${selected.addGst ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-border bg-card text-muted-foreground"}`}>
@@ -292,15 +317,15 @@ export default function Khata() {
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => downloadReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Download className="mr-1 inline" size={15} />PDF</button>
-            <button type="button" onClick={() => shareReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Share2 className="mr-1 inline" size={15} />Share PDF</button>
+            <button type="button" onClick={() => void downloadReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Download className="mr-1 inline" size={15} />PDF</button>
+            <button type="button" onClick={() => void shareReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Share2 className="mr-1 inline" size={15} />Share PDF</button>
           </div>
           {invoicePreview && <div className="rounded-xl border border-border bg-white overflow-hidden"><iframe title="Receipt preview" srcDoc={invoicePreview} className="h-[520px] w-full border-0" /><button type="button" onClick={openPrintWindow} className="w-full bg-primary p-3 font-bold text-primary-foreground">Open preview &amp; print</button></div>}
         </div>
         <Dialog open={qrOpen} onOpenChange={setQrOpen}>
           <DialogContent className="w-[90vw] max-w-sm rounded-2xl text-center">
             <DialogHeader><DialogTitle className="text-xl font-black">Payment QR</DialogTitle></DialogHeader>
-            {qrDataUrl && <><img src={qrDataUrl} alt="Payment QR" className="mx-auto h-64 w-64 rounded-xl bg-white p-2" /><p className="text-sm text-muted-foreground">Scan to pay {Math.max(0, balance) ? `₹${Math.max(0, balance).toLocaleString("en-IN")}` : "any amount"}</p><div className="mt-3 flex justify-center gap-5"><button type="button" onClick={() => downloadQr(selected)} className="text-sm font-bold text-primary"><Download className="mr-1 inline" size={14} />Download QR</button><button type="button" onClick={() => shareQr(selected)} className="text-sm font-bold text-primary"><Share2 className="mr-1 inline" size={14} />Share QR</button></div></>}
+            {qrDataUrl && <><div className="mb-3 text-center text-lg font-black">{state.settings.companyName || state.settings.businessName || "Fleet Manager"}</div><img src={qrDataUrl} alt="Payment QR" className="mx-auto h-64 w-64 rounded-xl bg-white p-2" /><p className="text-sm text-muted-foreground">Scan to pay {Math.max(0, balance) ? `₹${Math.max(0, balance).toLocaleString("en-IN")}` : "any amount"}</p><div className="mt-3 flex justify-center gap-5"><button type="button" onClick={() => void downloadQr(selected)} className="text-sm font-bold text-primary"><Download className="mr-1 inline" size={14} />Download QR</button><button type="button" onClick={() => void shareQr(selected)} className="text-sm font-bold text-primary"><Share2 className="mr-1 inline" size={14} />Share QR</button></div></>}
           </DialogContent>
         </Dialog>
         <Dialog open={receiptActionsOpen} onOpenChange={setReceiptActionsOpen}>
@@ -308,7 +333,7 @@ export default function Khata() {
             <DialogHeader><DialogTitle className="text-xl font-black">Receipt</DialogTitle></DialogHeader>
             <div className="grid gap-3 pt-3">
               <button type="button" onClick={() => { setReceiptActionsOpen(false); void shareReceipt(selected); }} className="rounded-xl bg-primary p-4 font-bold text-primary-foreground"><Share2 className="mr-2 inline" size={18} />Share PDF</button>
-              <button type="button" onClick={() => { setReceiptActionsOpen(false); downloadReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><Download className="mr-2 inline" size={18} />Download PDF</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); void downloadReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><Download className="mr-2 inline" size={18} />Download PDF</button>
               <button type="button" onClick={() => { setReceiptActionsOpen(false); printReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><ReceiptText className="mr-2 inline" size={18} />View Receipt</button>
             </div>
           </DialogContent>
@@ -330,22 +355,37 @@ export default function Khata() {
     );
   }
 
-  const visibleCustomers = state.customers.filter((customer) => `${customer.name} ${customer.company || ""} ${customer.phone} ${customer.address || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const visibleCustomers = state.customers.filter((customer) => {
+    const matchesSearch = `${customer.name} ${customer.company || ""} ${customer.phone} ${customer.address || ""}`.toLowerCase().includes(search.toLowerCase());
+    return matchesSearch && Boolean(customer.completed) === (customerSection === "completed");
+  });
   return (
     <Layout>
       <div className="fm-page-header">
         <div><h1>Khata Book</h1></div>
         <button type="button" className="fm-icon-button fm-primary-icon" onClick={() => setIsAddOpen(true)} aria-label="Add customer"><Plus size={24} strokeWidth={3} /></button>
       </div>
-      <div className="border-b border-border bg-[#1b2d3c] px-5 py-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customers..." className="w-full bg-transparent py-1 pl-9 text-lg outline-none placeholder:text-muted-foreground" /></div></div>
+       <div className="border-b border-border bg-[#1b2d3c] px-5 py-4">
+         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customers..." className="w-full bg-transparent py-1 pl-9 text-lg outline-none placeholder:text-muted-foreground" /></div>
+         <div className="mt-4 grid grid-cols-2 rounded-xl bg-background/40 p-1">
+           <button type="button" onClick={() => setCustomerSection("active")} className={`rounded-lg p-2 text-sm font-bold ${customerSection === "active" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Active Customers ({state.customers.filter((customer) => !customer.completed).length})</button>
+           <button type="button" onClick={() => setCustomerSection("completed")} className={`rounded-lg p-2 text-sm font-bold ${customerSection === "completed" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Work Complete ({state.customers.filter((customer) => customer.completed).length})</button>
+         </div>
+       </div>
       <div className="px-5 py-5 pb-24 space-y-4">
         <div className="rounded-2xl border border-primary/20 bg-[#3a2200] p-4 text-sm text-amber-200">ⓘ Tap a customer to open Khata.</div>
-        {visibleCustomers.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>No customers yet</p></div> :
+         {visibleCustomers.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>{customerSection === "completed" ? "No completed customers yet" : "No customers yet"}</p></div> :
           visibleCustomers.map((customer) => {
             const total = getCustomerSubtotal(customer.id) + getCustomerGst(customer);
-            return <button type="button" key={customer.id} onClick={() => { setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
+             return <div key={customer.id} onPointerDown={() => startCustomerPress(customer.id)} onPointerUp={endCustomerPress} onPointerCancel={endCustomerPress} onPointerLeave={endCustomerPress} onClick={() => { if (customerLongPressed.current) { customerLongPressed.current = false; return; } setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full cursor-pointer rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
               <div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#454545] text-3xl font-black text-primary">{customer.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="text-xl font-black">{customer.name}</h3><div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground"><Phone size={14} />{customer.phone}</div>{customer.address && <div className="text-sm text-muted-foreground">{customer.address}</div>}<div className="mt-1 text-sm text-muted-foreground">{getCustomerCharges(customer.id).length} work logs</div></div><div className="text-right"><div className="text-xl font-black text-primary">₹{total.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div><div className="mt-2 text-muted-foreground">›</div></div></div>
-            </button>;
+               <div className="mt-3 grid grid-cols-2 gap-2">
+                 <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer.id); setKhataTab("work"); }} className="rounded-xl bg-primary/15 p-2 text-sm font-bold text-primary">{customerSection === "completed" ? "Open history" : "Open Khata"}</button>
+                 {customerSection === "completed"
+                   ? <button type="button" onClick={(event) => { event.stopPropagation(); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl bg-emerald-500 p-2 text-sm font-bold text-white">Active Customer</button>
+                   : <span className="rounded-xl border border-border p-2 text-center text-xs font-semibold text-muted-foreground">Long press to complete</span>}
+               </div>
+             </div>;
           })}
       </div>
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -357,6 +397,16 @@ export default function Khata() {
             <textarea value={customerData.address || ""} onChange={(event) => setCustomerData({ ...customerData, address: event.target.value })} placeholder="Address / site location (optional)" className="min-h-20 w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
             <button type="submit" className="w-full rounded-xl bg-foreground p-4 font-bold text-background">Save Customer</button>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(completeCustomerId)} onOpenChange={(open) => !open && setCompleteCustomerId(null)}>
+        <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
+          <DialogHeader><DialogTitle className="text-xl font-black">Mark customer complete?</DialogTitle></DialogHeader>
+          <p className="py-2 text-sm text-muted-foreground">This customer will move to Work Complete and can be activated again later.</p>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button type="button" onClick={() => setCompleteCustomerId(null)} className="rounded-xl border border-border p-3 font-bold">Cancel</button>
+            <button type="button" onClick={() => { if (completeCustomerId) dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: completeCustomerId }); setCompleteCustomerId(null); }} className="rounded-xl bg-primary p-3 font-bold text-primary-foreground">Mark complete</button>
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>

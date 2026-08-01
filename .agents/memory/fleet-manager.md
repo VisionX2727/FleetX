@@ -38,3 +38,9 @@ Khata customer cards are intentionally tap-only summaries; payment status, GST o
 **Why:** The supplied mobile references separate the customer list from the detailed account screen and explicitly require PDF receipt sharing without export/supporting-document controls.
 
 **How to apply:** Keep GST percentage and GSTIN in Settings, apply GST only when the customer’s Add GST control is enabled, and never expose paid/due controls on the outer Khata list.
+
+Receipt exports now render the same branded invoice HTML used by View Receipt before encoding the document as a PDF; the PDF path must not regress to a text-only generator.
+
+**Why:** A text-stream PDF produced a white/raw-text receipt instead of matching the supplied invoice reference.
+
+**How to apply:** Keep Share PDF, Download PDF, and View Receipt driven from the same invoice data and visual template, including company branding, date ranges, payment details, and status.
