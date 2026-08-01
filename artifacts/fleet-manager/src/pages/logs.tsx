@@ -26,6 +26,21 @@ export default function Logs() {
   const filteredLogs = state.logs
     .filter(l => !khataLogIds.has(l.id))
     .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const groupedLogs = Object.entries(
+    filteredLogs.reduce<Record<string, WorkLog[]>>((groups, log) => {
+      const monthKey = log.date?.slice(0, 7) || "undated";
+      groups[monthKey] = [...(groups[monthKey] || []), log];
+      return groups;
+    }, {}),
+  ).sort(([monthA], [monthB]) => monthB.localeCompare(monthA));
+
+  const monthLabel = (monthKey: string) => {
+    if (monthKey === "undated") return "Undated";
+    const date = new Date(`${monthKey}-01T00:00:00`);
+    return Number.isNaN(date.getTime())
+      ? monthKey
+      : date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,7 +240,7 @@ export default function Logs() {
            <div className="bg-[#1b2d3c] text-white rounded-2xl p-3 mb-4 flex items-center justify-between sticky top-0 z-20 shadow-xl border border-border">
              <div className="flex items-center gap-2"><button type="button" aria-label="Clear selection" onClick={() => setSelectedLogs([])} className="p-1"><X size={22} /></button><span className="font-bold text-base">{selectedLogs.length} selected</span></div>
             <div className="flex gap-2">
-              <button onClick={() => setIsKhataOpen(true)} className="bg-white/10 text-white p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><BookOpen size={13} /> Add to Khata</button>
+              <button onClick={() => setIsKhataOpen(true)} className="bg-black text-white border border-white/20 p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><BookOpen size={13} /> Add to Khata</button>
                <button onClick={deleteSelected} className="border border-destructive/50 bg-destructive/10 text-destructive p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><Trash2 size={13} /> Delete</button>
             </div>
           </div>
@@ -234,7 +249,7 @@ export default function Logs() {
           <p className="mb-4 text-xs text-muted-foreground">Long press or double tap a log to select multiple entries.</p>
         )}
 
-        <div className="space-y-3">
+         <div className="space-y-6">
           {filteredLogs.length === 0 ? (
             <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
               <ClipboardX size={48} className="mx-auto text-muted-foreground opacity-30 mb-4" />
@@ -242,7 +257,15 @@ export default function Logs() {
               <p className="text-sm text-muted-foreground mt-1">Add a work entry to see it here.</p>
             </div>
           ) : (
-            filteredLogs.map(log => {
+             groupedLogs.map(([monthKey, monthLogs]) => (
+               <section key={monthKey} className="space-y-3">
+                 <div className="flex items-center gap-3 px-1">
+                   <h3 className="text-xs font-black uppercase tracking-[0.16em] text-primary">{monthLabel(monthKey)}</h3>
+                   <div className="h-px flex-1 bg-border" />
+                   <span className="text-[10px] font-bold text-muted-foreground">{monthLogs.length} {monthLogs.length === 1 ? "log" : "logs"}</span>
+                 </div>
+                 <div className="space-y-3">
+                 {monthLogs.map(log => {
               const vehicle = state.vehicles.find(v => v.id === log.vehicleId);
               const driver = state.drivers.find(d => d.id === log.driverId);
               const customer = state.customers.find(c => c.id === log.customerId);
@@ -278,7 +301,10 @@ export default function Logs() {
                   </div>
                 </div>
               )
-            })
+                 })}
+                 </div>
+               </section>
+             ))
           )}
         </div>
         </div>
