@@ -25,6 +25,7 @@ export default function Settings() {
   const [upiId, setUpiId] = useState(state.settings.upiId || "");
   const [bankName, setBankName] = useState(state.settings.bankName || "");
   const [gstNumber, setGstNumber] = useState(state.settings.gstNumber || "");
+  const [gstPercentage, setGstPercentage] = useState(state.settings.gstPercentage || 0);
 
   useEffect(() => {
     setBusinessName(state.settings.businessName);
@@ -38,6 +39,7 @@ export default function Settings() {
     setUpiId(state.settings.upiId || "");
     setBankName(state.settings.bankName || "");
     setGstNumber(state.settings.gstNumber || "");
+    setGstPercentage(state.settings.gstPercentage || 0);
   }, [state.settings]);
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -51,7 +53,7 @@ export default function Settings() {
   const handleSave = () => {
     dispatch({ 
       type: 'UPDATE_SETTINGS', 
-      payload: { businessName, companyName, ownerName, phone, address, stampAddress, stampCity, email, upiId, bankName, gstNumber }
+      payload: { businessName, companyName, ownerName, phone, address, stampAddress, stampCity, email, upiId, bankName, gstNumber, gstPercentage: Math.max(0, Number(gstPercentage) || 0) }
     });
     toast({
       title: "Settings Saved",
@@ -129,6 +131,8 @@ export default function Settings() {
           <div className="rounded-lg bg-[#4b2d05] p-2 text-[10px] text-amber-100">ⓘ UPI ID is used for generating payment QR codes. No UPI ID is shown on the QR — just the payment amount.</div>
           <label className="fm-settings-label">Bank Name<input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Bank name" /></label>
           <label className="fm-settings-label">GST Number<input value={gstNumber} onChange={e => setGstNumber(e.target.value)} placeholder="GST number (optional)" /></label>
+          <label className="fm-settings-label">GST Percentage<input type="number" min="0" max="100" step="0.01" value={gstPercentage || ""} onChange={e => setGstPercentage(Number(e.target.value))} placeholder="e.g. 18" /></label>
+          <p className="text-[11px] text-muted-foreground">GST is added only for customers where you turn on Add GST.</p>
         </section>
 
         <button type="button" onClick={handleSave} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary p-4 font-black text-primary-foreground"><Save size={17} /> Save All Settings</button>

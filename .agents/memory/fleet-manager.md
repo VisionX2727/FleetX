@@ -32,3 +32,9 @@ Logs history is an all-dates view of untransferred work logs; Khata is the autho
 **Why:** The mobile reference shows multiple dated entries together and users need to edit or remove entries without duplicates reappearing in Logs.
 
 **How to apply:** Keep selection actions visible as Khata/Delete, preserve edit-before-transfer, and keep receipt fields driven by Settings plus the customer’s selected payment mode.
+
+Khata customer cards are intentionally tap-only summaries; payment status, GST opt-in, QR, payment entry, and receipt actions belong inside the customer detail view. Receipts are shared/downloaded as PDF files, while the HTML invoice remains only for print preview.
+
+**Why:** The supplied mobile references separate the customer list from the detailed account screen and explicitly require PDF receipt sharing without export/supporting-document controls.
+
+**How to apply:** Keep GST percentage and GSTIN in Settings, apply GST only when the customer’s Add GST control is enabled, and never expose paid/due controls on the outer Khata list.

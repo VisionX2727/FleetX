@@ -15,6 +15,7 @@ export default function Logs() {
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
+  const suppressClick = useRef(false);
   
   const [formData, setFormData] = useState<Partial<WorkLog>>({
     date: filterDate, vehicleId: "", driverId: "", customerId: "", description: "", hours: 0, trips: 0, diesel: 0, amount: 0, status: "Pending"
@@ -83,6 +84,7 @@ export default function Logs() {
     if (pressTimer.current) window.clearTimeout(pressTimer.current);
     pressTimer.current = window.setTimeout(() => {
       longPressed.current = true;
+      suppressClick.current = true;
       toggleSelect(id);
     }, 450);
   };
@@ -278,7 +280,13 @@ export default function Logs() {
                    onPointerUp={endPress}
                    onPointerCancel={endPress}
                    onPointerLeave={endPress}
-                   onDoubleClick={() => toggleSelect(log.id)}
+                   onClick={() => {
+                     if (suppressClick.current) {
+                       suppressClick.current = false;
+                       return;
+                     }
+                     if (selectedLogs.length > 0) toggleSelect(log.id);
+                   }}
                    onContextMenu={(event) => event.preventDefault()}
                   className={`bg-card rounded-2xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'}`}
                 >

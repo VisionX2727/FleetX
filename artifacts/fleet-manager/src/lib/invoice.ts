@@ -30,6 +30,10 @@ export type InvoiceData = {
   serviceLocation: string;
   lines: InvoiceLine[];
   total: number;
+  subtotal?: number;
+  gstPercentage?: number;
+  gstAmount?: number;
+  addGst?: boolean;
   balanceDue: number;
   status: "PAID" | "DUE";
   paymentDate?: string;
@@ -87,10 +91,9 @@ export function createInvoiceHtml(data: InvoiceData) {
      <header class="brand">${logo}<div><div class="business">${escapeHtml(data.companyName)}</div><div class="subtitle">${escapeHtml(data.businessName || "SERVICE INVOICE & PROJECT REPORT")}</div><div class="address">${escapeHtml(data.address || "")}</div></div></header>
      <section class="box"><div class="meta"><span>INVOICE ID: ${escapeHtml(data.invoiceId)}</span><span>Time: ${escapeHtml(data.issuedTime)}</span></div><div class="meta-row"><b>Work Date Range:</b> ${escapeHtml(data.workStart)} to ${escapeHtml(data.workEnd)}</div><div class="meta-row"><b>Service Location:</b> ${escapeHtml(data.serviceLocation || "—")}</div></section>
     <h2 class="section-title">CLIENT INFORMATION</h2><section class="box client-grid"><div class="label">Contact Person:</div><div>${escapeHtml(data.customerName)}</div><div class="label">Phone:</div><div>${escapeHtml(data.customerPhone || "—")}</div><div class="label">Billing Address:</div><div>${escapeHtml(data.customerCompany || data.customerAddress || "—")}</div><div></div><div>${escapeHtml(data.customerAddress || "—")}</div></section>
-    <h2 class="section-title">PAYMENT SUMMARY</h2><table class="summary"><thead><tr><th>Description</th><th>Amount (INR)</th></tr></thead><tbody>${rows || `<tr><td>No work entries</td><td class="amount">${money(0)}</td></tr>`}<tr class="total"><td>Total Amount:</td><td>${money(data.total)}</td></tr><tr class="grand"><td colspan="2">Grand Total: ${money(data.total)}</td></tr></tbody></table>
+     <h2 class="section-title">PAYMENT SUMMARY</h2><table class="summary"><thead><tr><th>Description</th><th>Amount (INR)</th></tr></thead><tbody>${rows || `<tr><td>No work entries</td><td class="amount">${money(0)}</td></tr>`}<tr class="total"><td>Subtotal:</td><td>${money(data.subtotal ?? data.total)}</td></tr>${data.addGst && data.gstAmount ? `<tr><td>GST (${data.gstPercentage || 0}%):</td><td>${money(data.gstAmount)}</td></tr>` : ""}<tr class="grand"><td colspan="2">Grand Total: ${money(data.total)}</td></tr></tbody></table>
     <div class="words"><b>Amount in Words:</b> ${escapeHtml(amountInWords(data.total))}</div>
      <h2 class="section-title">PAYMENT METHOD</h2><section class="payment"><div><ul><li>Invoice Issuing Date: ${escapeHtml(data.issuedAt)}</li><li>Payment Terms: 7 Days from Receipt</li><li>Payment Mode: ${escapeHtml(data.paymentMode || "—")}</li><li>Reference UPI: ${escapeHtml(data.paymentReference || data.upiId || "—")}</li><li>Status: <span class="status">${data.status}</span></li><li>Balance Due: ${money(data.balanceDue)}</li><li>Date of Payment: ${escapeHtml(data.paymentDate || "—")}</li></ul></div><div class="sign"><b class="seal">[Secured Digital Signature]</b><div class="signature">${escapeHtml(data.ownerName || data.companyName)}</div><b>Authorized Signatory: ${escapeHtml(data.ownerName || data.companyName)}</b><br>Designation: Owner / Authorized Signatory<br><span class="stamp">${escapeHtml(data.stampAddress || data.address || "")}${data.stampCity ? ` • ${escapeHtml(data.stampCity)}` : ""}</span></div></section>
-     <div class="actions"><button type="button">Export as CSV</button><button type="button">Upload Supporting Documents</button></div>
      <footer class="footer">${escapeHtml(data.phone || "—")} &nbsp;•&nbsp; ${escapeHtml(data.email || "—")} &nbsp;•&nbsp; ${escapeHtml(data.bankName || "—")} &nbsp;•&nbsp; GSTIN: ${escapeHtml(data.gstNumber || "—")}</footer>
   </main></body></html>`;
 }

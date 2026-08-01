@@ -8,12 +8,12 @@ export type Vehicle = {
 };
 export type VehicleDay = { id: string; date: string; vehicleId: string; amount: number; diesel: number; trips: number; hours: number; status: Vehicle['status']; notes?: string };
 export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
-export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string };
+export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; addGst?: boolean };
 export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string; paymentMode?: string };
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
-export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; stampAddress?: string; stampCity?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; isLoggedIn: boolean };
+export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; stampAddress?: string; stampCity?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
   vehicles: Vehicle[];
@@ -27,7 +27,7 @@ export type AppState = {
   settings: Settings;
 };
 
-const defaultSettings: Settings = { businessName: 'Fleet Manager', companyName: '', ownerName: '', phone: '', address: '', stampAddress: '', stampCity: '', email: '', isLoggedIn: true };
+const defaultSettings: Settings = { businessName: 'Fleet Manager', companyName: '', ownerName: '', phone: '', address: '', stampAddress: '', stampCity: '', email: '', gstPercentage: 0, isLoggedIn: true };
 
 const defaultState: AppState = {
   vehicles: [],
