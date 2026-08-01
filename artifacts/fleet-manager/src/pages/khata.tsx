@@ -58,7 +58,7 @@ export default function Khata() {
     return `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(state.settings.businessName)}&am=${amount}&cu=INR`;
   };
 
-  const getInvoiceData = (customer: Customer, qrDataUrl?: string): InvoiceData => {
+  const getInvoiceData = (customer: Customer): InvoiceData => {
     const charges = getCustomerCharges(customer.id);
     const payments = state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").sort((a, b) => b.date.localeCompare(a.date));
     const relatedLogs = charges.map((entry) => state.logs.find((log) => log.id === entry.logId)).filter(Boolean);
@@ -88,14 +88,22 @@ export default function Khata() {
         date: entry.date,
         description: entry.description,
         amount: entry.amount,
-        duration: relatedLogs[index]?.hours ? `Work Duration: ${relatedLogs[index]?.hours} hours` : undefined,
+        duration: relatedLogs[index]
+          ? (() => {
+              const relatedLog = relatedLogs[index]!;
+              const vehicle = state.vehicles.find((item) => item.id === relatedLog.vehicleId);
+              if (vehicle?.type === "Hywa" || vehicle?.type === "Tipper") {
+                return `Trips: ${relatedLog.trips || 0} • Diesel: ${relatedLog.diesel || 0} L`;
+              }
+              return relatedLog.hours ? `Work Duration: ${relatedLog.hours} hours` : undefined;
+            })()
+          : undefined,
       })),
       total,
       balanceDue,
        status: customer.paymentStatus === "Paid" || balanceDue <= 0 ? "PAID" : "DUE",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
-      qrDataUrl,
     };
   };
 
@@ -119,8 +127,7 @@ export default function Khata() {
   };
 
   const downloadReceipt = async (customer: Customer) => {
-    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
-    const html = createInvoiceHtml(getInvoiceData(customer, qr));
+    const html = createInvoiceHtml(getInvoiceData(customer));
     const anchor = document.createElement("a");
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const invoiceName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "customer"}-invoice.html`;
@@ -138,9 +145,7 @@ export default function Khata() {
   };
 
   const printReceipt = async (customer: Customer) => {
-    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
-    setQrDataUrl(qr);
-    const html = createInvoiceHtml(getInvoiceData(customer, qr));
+    const html = createInvoiceHtml(getInvoiceData(customer));
     setInvoicePreview(html);
   };
 
@@ -156,8 +161,7 @@ export default function Khata() {
   };
 
   const shareReceipt = async (customer: Customer) => {
-    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
-    const html = createInvoiceHtml(getInvoiceData(customer, qr));
+    const html = createInvoiceHtml(getInvoiceData(customer));
     const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-invoice.html`;
     const file = new File([html], fileName, { type: "text/html" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {

@@ -16,16 +16,35 @@ export default function Logs() {
   const longPressed = useRef(false);
   
   const [formData, setFormData] = useState<Partial<WorkLog>>({
-    date: filterDate, vehicleId: "", driverId: "", customerId: "", description: "", hours: 0, amount: 0, status: "Pending"
+    date: filterDate, vehicleId: "", driverId: "", customerId: "", description: "", hours: 0, trips: 0, diesel: 0, amount: 0, status: "Pending"
   });
 
-  const filteredLogs = state.logs.filter(l => l.date === filterDate).sort((a,b) => b.id.localeCompare(a.id));
+  const selectedVehicle = state.vehicles.find((vehicle) => vehicle.id === formData.vehicleId);
+  const tripBasedVehicle = selectedVehicle?.type === "Hywa" || selectedVehicle?.type === "Tipper";
+  const khataLogIds = new Set(state.ledgers.map((entry) => entry.logId).filter(Boolean));
+  const filteredLogs = state.logs
+    .filter(l => l.date === filterDate && !khataLogIds.has(l.id))
+    .sort((a,b) => b.id.localeCompare(a.id));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     dispatch({ type: 'ADD_LOG', payload: formData });
     setIsAddOpen(false);
-    setFormData({ date: filterDate, vehicleId: state.vehicles[0]?.id || "", driverId: state.drivers[0]?.id || "", customerId: "", description: "", hours: 0, amount: 0, status: "Pending" });
+    setFormData({ date: filterDate, vehicleId: state.vehicles[0]?.id || "", driverId: state.drivers[0]?.id || "", customerId: "", description: "", hours: 0, trips: 0, diesel: 0, amount: 0, status: "Pending" });
+  };
+
+  const selectVehicle = (vehicleId: string) => {
+    const vehicle = state.vehicles.find((item) => item.id === vehicleId);
+    const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicleId);
+    const tripBased = vehicle?.type === "Hywa" || vehicle?.type === "Tipper";
+    setFormData({
+      ...formData,
+      vehicleId,
+      driverId: assignedDriver?.id || formData.driverId || "",
+      hours: tripBased ? 0 : formData.hours || 0,
+      trips: tripBased ? formData.trips || 0 : 0,
+      diesel: tripBased ? formData.diesel || 0 : 0,
+    });
   };
 
   const toggleSelect = (id: string) => {
@@ -109,23 +128,19 @@ export default function Logs() {
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Date</label>
-                  <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" />
+                  <input type="date" value={formData.date || ""} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Vehicle</label>
-                  <select required value={formData.vehicleId} onChange={e => {
-                    const vehicleId = e.target.value;
-                    const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicleId);
-                    setFormData({...formData, vehicleId, driverId: assignedDriver?.id || formData.driverId || ""});
-                  }} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
-                    <option value="" disabled>Select Vehicle</option>
+                  <select value={formData.vehicleId || ""} onChange={e => selectVehicle(e.target.value)} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">Select Vehicle</option>
                     {state.vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.regNumber})</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Driver</label>
-                  <select required value={formData.driverId} onChange={e => setFormData({...formData, driverId: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
-                    <option value="" disabled>Select Driver</option>
+                  <select value={formData.driverId || ""} onChange={e => setFormData({...formData, driverId: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">Select Driver</option>
                     {state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
@@ -138,16 +153,29 @@ export default function Logs() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Description</label>
-                  <input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. Site clearing at layout" />
+                  <input value={formData.description || ""} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="Optional work description" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Hours</label>
-                    <input type="number" step="0.5" required value={formData.hours || ''} onChange={e => setFormData({...formData, hours: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="8" />
-                  </div>
+                  {tripBasedVehicle ? (
+                    <>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Trips</label>
+                        <input type="number" min="0" step="1" value={formData.trips || ''} onChange={e => setFormData({...formData, trips: Number(e.target.value), hours: 0})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Diesel (L)</label>
+                        <input type="number" min="0" step="0.1" value={formData.diesel || ''} onChange={e => setFormData({...formData, diesel: Number(e.target.value), hours: 0})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Hours</label>
+                      <input type="number" min="0" step="0.5" value={formData.hours || ''} onChange={e => setFormData({...formData, hours: Number(e.target.value), trips: 0, diesel: 0})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Amount (₹)</label>
-                    <input type="number" required value={formData.amount || ''} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="12000" />
+                    <input type="number" min="0" value={formData.amount || ''} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
                   </div>
                 </div>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
@@ -160,7 +188,7 @@ export default function Logs() {
       </div>
       <div className="fm-tab-row">
         <button className={`fm-tab ${activeTab === "new" ? "is-active" : ""}`} onClick={() => setActiveTab("new")}>New Entry</button>
-        <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>History ({state.logs.length})</button>
+        <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>History ({state.logs.filter((log) => !khataLogIds.has(log.id)).length})</button>
       </div>
       {activeTab === "new" && (
         <div className="px-5 pt-6">
@@ -171,8 +199,8 @@ export default function Logs() {
               <p>Add vehicles in Fleet tab first</p>
             </div>
           ) : (
-            <div className="fm-stack">{state.vehicles.map((vehicle) => (
-              <button key={vehicle.id} type="button" onClick={() => { setFormData({ ...formData, date: filterDate, vehicleId: vehicle.id, driverId: state.drivers.find((driver) => driver.vehicleId === vehicle.id)?.id || "" }); setIsAddOpen(true); }} className="fm-list-row text-left">
+              <div className="fm-stack">{state.vehicles.map((vehicle) => (
+               <button key={vehicle.id} type="button" onClick={() => { setFormData({ ...formData, date: filterDate, vehicleId: vehicle.id, driverId: state.drivers.find((driver) => driver.vehicleId === vehicle.id)?.id || "", hours: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : formData.hours || 0, trips: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0, diesel: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0 }); setIsAddOpen(true); }} className="fm-list-row text-left">
                 <span><strong>{vehicle.name}</strong><small>{vehicle.type} • {vehicle.regNumber}</small></span><Plus className="text-primary" size={20} />
               </button>
             ))}</div>
@@ -199,6 +227,9 @@ export default function Logs() {
             </div>
           </div>
         )}
+        {filteredLogs.length > 0 && selectedLogs.length === 0 && (
+          <p className="mb-4 text-xs text-muted-foreground">Long press or double tap a log to select multiple entries.</p>
+        )}
 
         <div className="space-y-3">
           {filteredLogs.length === 0 ? (
@@ -221,20 +252,15 @@ export default function Logs() {
                    onPointerUp={endPress}
                    onPointerCancel={endPress}
                    onPointerLeave={endPress}
-                   onClick={() => {
-                     if (longPressed.current) {
-                       longPressed.current = false;
-                       return;
-                     }
-                     toggleSelect(log.id);
-                   }}
+                   onDoubleClick={() => toggleSelect(log.id)}
+                   onContextMenu={(event) => event.preventDefault()}
                   className={`bg-card rounded-2xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'}`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <h4 className="font-bold text-base leading-tight">{log.description}</h4>
-                      <div className="text-xs font-semibold text-muted-foreground mt-1">
-                         {vehicle?.name} • {driver?.name} • {log.hours} hrs {customer ? `• ${customer.name}` : ""}
+                       <h4 className="font-bold text-base leading-tight">{log.description || "Work entry"}</h4>
+                       <div className="text-xs font-semibold text-muted-foreground mt-1">
+                          {vehicle?.name || "Vehicle"} {driver ? `• ${driver.name}` : ""} {vehicle?.type === "Hywa" || vehicle?.type === "Tipper" ? `• ${log.trips || 0} trips • ${log.diesel || 0} L diesel` : `• ${log.hours || 0} hrs`} {customer ? `• ${customer.name}` : ""}
                       </div>
                     </div>
                     <div className="text-right ml-4">
