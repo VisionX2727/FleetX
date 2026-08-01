@@ -106,7 +106,19 @@ export default function Fleet() {
                       <h2>{vehicle.name}</h2>
                       <p>{vehicle.type} <span>•</span> {vehicle.regNumber}</p>
                     </div>
-                    <span className={`fm-status ${statusClass(vehicle.status)}`}>{vehicle.status}</span>
+                    <select
+                      aria-label={`Change status for ${vehicle.name}`}
+                      value={vehicle.status}
+                      onChange={(event) => dispatch({
+                        type: "UPDATE_VEHICLE",
+                        payload: { id: vehicle.id, status: event.target.value as Vehicle["status"] },
+                      })}
+                      className={`fm-status fm-status-select ${statusClass(vehicle.status)}`}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Idle">Idle</option>
+                      <option value="Maintenance">Maintenance</option>
+                    </select>
                   </div>
                   <div className="fm-vehicle-metrics">
                     <div><span>Site</span><strong>{vehicle.currentSite || "Not set"}</strong></div>

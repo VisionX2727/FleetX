@@ -49,8 +49,8 @@ export default function Calculator() {
 
   return (
     <Layout>
-      <div className="min-h-[calc(100dvh-32px)] bg-background">
-        <header className="flex items-center gap-3 px-7 pt-3 text-[27px] font-black">
+      <div className="fm-calculator-page bg-background">
+        <header className="fm-calculator-header">
           <CalculatorIcon className="text-primary" size={24} />
           <h1>Calculator</h1>
         </header>
@@ -62,27 +62,25 @@ export default function Calculator() {
             <div className="text-6xl font-black tracking-tighter text-foreground overflow-x-auto no-scrollbar">{display}</div>
           </div>
         </div>
-        <div className="mt-20">
-          <div className="fm-calculator-grid">
-            {buttons.flat().map((btn, i) => {
-              const isOp = ['/', '*', '-', '+', '='].includes(btn);
-              const isAction = ['C', '⌫', '%'].includes(btn);
-              return (
-                <button
-                  key={i}
-                  onClick={() => {
-                    if (btn === 'C') clear();
-                    else if (btn === '⌫') backspace();
-                    else if (btn === '=') calculate();
-                    else append(btn);
-                  }}
-                   className={`fm-calculator-button ${isOp ? 'operator' : isAction ? 'action' : ''} ${btn === "=" ? "equals" : ""}`}
-                >
-                  {btn === '⌫' ? <Delete size={24} /> : btn}
-                </button>
-              )
-            })}
-          </div>
+        <div className="fm-calculator-grid">
+          {buttons.flat().map((btn, i) => {
+            const isOp = ['/', '*', '-', '+', '='].includes(btn);
+            const isAction = ['C', '⌫', '%'].includes(btn);
+            return (
+              <button
+                key={i}
+                onClick={() => {
+                  if (btn === 'C') clear();
+                  else if (btn === '⌫') backspace();
+                  else if (btn === '=') calculate();
+                  else append(btn);
+                }}
+                className={`fm-calculator-button ${isOp ? 'operator' : isAction ? 'action' : ''} ${btn === "=" ? "equals" : ""}`}
+              >
+                {btn === '⌫' ? <Delete size={24} /> : btn}
+              </button>
+            )
+          })}
         </div>
       </div>
     </Layout>
