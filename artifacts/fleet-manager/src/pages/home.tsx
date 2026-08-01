@@ -2,7 +2,6 @@ import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { ArrowUpRight, ArrowDownRight, ClipboardList, AlertCircle, TrendingUp } from "lucide-react";
-import LogoAsset from "@assets/1783028126241_1785582569703.png";
 
 export default function Home() {
   const { state } = useStore();
@@ -29,9 +28,13 @@ export default function Home() {
             <h1 className="text-sm font-semibold opacity-80 uppercase tracking-wider mb-1">Command Center</h1>
             <h2 className="text-3xl font-bold tracking-tight">{state.settings.businessName}</h2>
           </div>
-          {state.settings.logoUrl || LogoAsset ? (
-            <img src={state.settings.logoUrl || LogoAsset} alt="Logo" className="w-12 h-12 rounded-xl shadow-sm object-cover bg-white p-1" />
-          ) : null}
+          {state.settings.logoUrl ? (
+            <img src={state.settings.logoUrl} alt="Business logo" className="w-12 h-12 rounded-xl shadow-sm object-cover bg-white p-1" />
+          ) : (
+            <div className="w-12 h-12 rounded-xl shadow-sm bg-black text-primary flex items-center justify-center font-black text-sm">
+              {(state.settings.businessName || "FM").slice(0, 2).toUpperCase()}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-4 relative z-10">

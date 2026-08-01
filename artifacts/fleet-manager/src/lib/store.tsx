@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { supabase, supabaseConfigured } from '@/lib/supabase';
 
 export type Vehicle = { id: string; name: string; type: string; regNumber: string; status: 'Active' | 'Idle' | 'Maintenance' };
 export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
@@ -9,7 +10,7 @@ export type Driver = { id: string; name: string; phone: string; type: 'Regular' 
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string };
 export type Settings = { businessName: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; isLoggedIn: boolean };
 
-type AppState = {
+export type AppState = {
   vehicles: Vehicle[];
   logs: WorkLog[];
   customers: Customer[];
@@ -58,22 +59,70 @@ type StoreContextType = {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+function getStorageKey(userId: string) {
+  return `fleet-manager-state:${userId}`;
+}
+
+function cloneDefaultState(): AppState {
+  return JSON.parse(JSON.stringify(defaultState)) as AppState;
+}
+
+export function StoreProvider({ children, userId }: { children: ReactNode; userId: string }) {
   const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem('fleet-manager-state');
+    const scopedKey = getStorageKey(userId);
+    const scopedSaved = localStorage.getItem(scopedKey);
+    const legacySaved = localStorage.getItem("fleet-manager-state");
+    const legacyOwner = localStorage.getItem("fleet-manager-legacy-owner");
+    const saved = scopedSaved || (legacySaved && !legacyOwner ? legacySaved : null);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as AppState;
+        if (!scopedSaved && legacySaved && !legacyOwner) {
+          localStorage.setItem("fleet-manager-legacy-owner", userId);
+          localStorage.setItem(scopedKey, saved);
+          localStorage.removeItem("fleet-manager-state");
+        }
+        return parsed;
       } catch (e) {
-        return defaultState;
+        return cloneDefaultState();
       }
     }
-    return defaultState;
+    const initial = cloneDefaultState();
+    if (saved) {
+      localStorage.setItem(getStorageKey(userId), saved);
+    }
+    return initial;
   });
+  const [cloudLoaded, setCloudLoaded] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('fleet-manager-state', JSON.stringify(state));
-  }, [state]);
+    let mounted = true;
+    setCloudLoaded(false);
+    if (!supabaseConfigured) {
+      setCloudLoaded(true);
+      return () => { mounted = false; };
+    }
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      const remoteState = data.user?.user_metadata?.fleet_manager_data;
+      if (remoteState && typeof remoteState === "object") {
+        setState(remoteState as AppState);
+      }
+      setCloudLoaded(true);
+    });
+    return () => { mounted = false; };
+  }, [userId]);
+
+  useEffect(() => {
+    localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
+    if (!cloudLoaded || !supabaseConfigured) return;
+    const timer = window.setTimeout(() => {
+      supabase.auth.updateUser({ data: { fleet_manager_data: state } }).catch((error) => {
+        console.error("Fleet cloud sync failed", error);
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [state, userId, cloudLoaded]);
 
   const dispatch = (action: { type: string; payload?: any }) => {
     setState((prev) => {
@@ -123,6 +172,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Settings Actions
         case 'UPDATE_SETTINGS':
           return { ...prev, settings: { ...prev.settings, ...action.payload } };
+        case 'RESET_DATA':
+          return cloneDefaultState();
 
         default:
           return prev;

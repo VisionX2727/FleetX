@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone } from "lucide-react";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { createInvoiceHtml, InvoiceData } from "@/lib/invoice";
 
 export default function Khata() {
   const { state, dispatch } = useStore();
@@ -12,6 +13,7 @@ export default function Khata() {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [receiptCustomerId, setReceiptCustomerId] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [invoicePreview, setInvoicePreview] = useState("");
 
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "" });
@@ -50,32 +52,54 @@ export default function Khata() {
     setReceiptCustomerId(customer.id);
   };
 
-  const receiptText = (customer: Customer) => {
+  const getInvoiceData = (customer: Customer): InvoiceData => {
     const charges = getCustomerCharges(customer.id);
-    const total = getCustomerBalance(customer.id);
-    const lines = [
-      state.settings.businessName || "Fleet Manager",
-      state.settings.ownerName || "",
-      state.settings.phone || "",
-      "",
-      `Customer: ${customer.name}`,
-      customer.address || "",
-      `Total due: ₹${total.toLocaleString("en-IN")}`,
-      "",
-      ...charges.map((entry) => `${entry.date} ${entry.description} ₹${entry.amount.toLocaleString("en-IN")}`),
-    ];
-    return lines.join("\r\n");
+    const payments = state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").sort((a, b) => b.date.localeCompare(a.date));
+    const relatedLogs = charges.map((entry) => state.logs.find((log) => log.id === entry.logId)).filter(Boolean);
+    const dates = charges.map((entry) => entry.date).sort();
+    const total = charges.reduce((sum, entry) => sum + entry.amount, 0);
+    const balanceDue = getCustomerBalance(customer.id);
+    return {
+      invoiceId: `FM-${new Date().getFullYear()}-${customer.id.slice(-6).toUpperCase()}`,
+      issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      businessName: state.settings.businessName || "Fleet Manager",
+      ownerName: state.settings.ownerName || "",
+      phone: state.settings.phone || "",
+      email: state.settings.email || "",
+      address: state.settings.address || "",
+      bankName: state.settings.bankName || "",
+      gstNumber: state.settings.gstNumber || "",
+      upiId: state.settings.upiId || "",
+      logoUrl: state.settings.logoUrl,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerCompany: customer.company || "",
+      customerAddress: customer.address || "",
+      workStart: dates[0] || new Date().toISOString().split("T")[0],
+      workEnd: dates[dates.length - 1] || new Date().toISOString().split("T")[0],
+      serviceLocation: customer.address || "",
+      lines: charges.map((entry, index) => ({
+        date: entry.date,
+        description: entry.description,
+        amount: entry.amount,
+        duration: relatedLogs[index]?.hours ? `Work Duration: ${relatedLogs[index]?.hours} hours` : undefined,
+      })),
+      total,
+      balanceDue,
+      status: balanceDue <= 0 ? "PAID" : "DUE",
+      paymentDate: payments[0]?.date,
+      paymentReference: payments[0]?.description,
+    };
   };
 
-  const receiptFileName = (customer: Customer) =>
-    `${customer.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "customer"}-receipt.txt`;
-
   const downloadReceipt = (customer: Customer) => {
-    const blob = new Blob([receiptText(customer)], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
+    const html = createInvoiceHtml(getInvoiceData(customer));
     const anchor = document.createElement("a");
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const invoiceName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "customer"}-invoice.html`;
+    const url = URL.createObjectURL(blob);
     anchor.href = url;
-    anchor.download = receiptFileName(customer);
+    anchor.download = invoiceName;
     anchor.rel = "noopener";
     anchor.style.display = "none";
     document.body.appendChild(anchor);
@@ -86,15 +110,29 @@ export default function Khata() {
     }, 1000);
   };
 
+  const printReceipt = (customer: Customer) => {
+    const html = createInvoiceHtml(getInvoiceData(customer));
+    setInvoicePreview(html);
+  };
+
+  const openPrintWindow = () => {
+    if (!invoicePreview) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(invoicePreview.replace("</body>", `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},250)})</script></body>`));
+    printWindow.document.close();
+  };
+
   const shareReceipt = async (customer: Customer) => {
-    const file = new File([receiptText(customer)], receiptFileName(customer), { type: "text/plain" });
+    const html = createInvoiceHtml(getInvoiceData(customer));
+    const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-invoice.html`;
+    const file = new File([html], fileName, { type: "text/html" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
-        await navigator.share({
-          title: `${state.settings.businessName} receipt`,
-          text: `Receipt for ${customer.name}`,
-          files: [file],
-        });
+        await navigator.share({ title: `${state.settings.businessName} invoice`, text: `Invoice for ${customer.name}`, files: [file] });
         return;
       } catch (error) {
         if ((error as DOMException)?.name === "AbortError") return;
@@ -133,6 +171,10 @@ export default function Khata() {
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Phone</label>
                   <input required type="tel" value={customerData.phone} onChange={e => setCustomerData({...customerData, phone: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="10 digit number" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Billing Address / Site Location</label>
+                  <textarea value={customerData.address || ""} onChange={e => setCustomerData({...customerData, address: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary min-h-20" placeholder="Address or work site location" />
                 </div>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
                   Save Customer
@@ -230,7 +272,7 @@ export default function Khata() {
           })
         )}
       </div>
-      <Dialog open={Boolean(receiptCustomerId)} onOpenChange={(open) => { if (!open) { setReceiptCustomerId(null); setQrDataUrl(""); } }}>
+      <Dialog open={Boolean(receiptCustomerId)} onOpenChange={(open) => { if (!open) { setReceiptCustomerId(null); setQrDataUrl(""); setInvoicePreview(""); } }}>
         <DialogContent className="w-[90vw] max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
           {receiptCustomerId && (() => {
             const customer = state.customers.find((item) => item.id === receiptCustomerId);
@@ -252,8 +294,10 @@ export default function Khata() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-4">
                   <button onClick={() => generatePaymentQr(customer)} className="bg-primary text-primary-foreground p-3 rounded-xl font-bold">Generate QR</button>
-                  <button onClick={() => downloadReceipt(customer)} className="bg-foreground text-background p-3 rounded-xl font-bold">Download receipt</button>
+                   <button onClick={() => printReceipt(customer)} className="bg-foreground text-background p-3 rounded-xl font-bold">Print / Save PDF</button>
                 </div>
+                 <button onClick={() => downloadReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold">Download invoice file</button>
+                 {invoicePreview && <div className="mt-4 rounded-xl border border-border overflow-hidden bg-white"><iframe title="Invoice preview" srcDoc={invoicePreview} className="w-full h-[520px] border-0" /><button onClick={openPrintWindow} className="w-full bg-primary text-primary-foreground p-3 font-bold">Open preview &amp; print</button></div>}
                 {qrDataUrl && <div className="mt-5 text-center"><img src={qrDataUrl} alt="Payment QR" className="w-56 h-56 mx-auto rounded-xl" /><p className="text-xs text-muted-foreground mt-2">Scan to pay ₹{total.toLocaleString("en-IN")}</p><button onClick={() => navigator.share?.({ title: `${state.settings.businessName} payment`, text: `Payment for ${customer.name}: ₹${total.toLocaleString("en-IN")}` })} className="mt-3 text-sm font-bold text-primary">Share payment request</button></div>}
                 <button onClick={() => shareReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold">Share receipt</button>
               </>

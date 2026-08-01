@@ -9,8 +9,8 @@ The first milestone intentionally keeps fleet records local-first while using Su
 
 **How to apply:** Future persistence work should preserve the current entity relationships and replace local storage behind the store boundary rather than changing the user-facing flows.
 
-Receipts intentionally use a downloadable/shareable `.txt` file with the compact mobile layout from the supplied reference: business identity, customer, location, total due, and dated work lines. Google OAuth must return to the artifact's `/settings` route and listen for Supabase auth state changes after the account chooser.
+The app now gates all routes behind Google OAuth, scopes fleet data to the authenticated Supabase user, and syncs the workspace into that user's Supabase auth metadata while retaining a user-specific local cache. Receipts use a branded invoice/project-report HTML preview and browser print/save-PDF flow, deriving customer data from Khata and owner/logo data from Settings.
 
-**Why:** The supplied screenshots show a plain-text mobile receipt and a normal Google account chooser, not a PDF receipt or an app crash.
+**Why:** The user requested account-specific access and a receipt matching the supplied service invoice image rather than the earlier raw text download.
 
-**How to apply:** Keep receipt generation text-based unless the user explicitly requests a different document format; configure the Supabase Google provider and exact preview/deployed callback URL in the Supabase dashboard for end-to-end sign-in.
+**How to apply:** Keep the startup login gate and do not put sign-in inside Settings; Settings should expose the signed-in account and Logout only. Keep invoice generation linked to Khata charges and Settings profile data. Google provider activation, consent-screen branding, and exact redirect allow-list entries remain Supabase dashboard configuration.

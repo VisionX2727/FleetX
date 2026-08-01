@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { StoreProvider } from '@/lib/store';
+import { AuthProvider, useAuth } from '@/lib/auth';
 
 import Home from '@/pages/home';
 import Fleet from '@/pages/fleet';
@@ -14,6 +15,7 @@ import Analytics from '@/pages/analytics';
 import Drivers from '@/pages/drivers';
 import Calculator from '@/pages/calculator';
 import Settings from '@/pages/settings';
+import Login from '@/pages/login';
 
 const queryClient = new QueryClient();
 
@@ -36,15 +38,28 @@ function Router() {
 
 function App() {
   return (
-    <StoreProvider>
+    <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
-          </WouterRouter>
+          <AuthenticatedShell />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
+    </AuthProvider>
+  );
+}
+
+function AuthenticatedShell() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="min-h-[100dvh] bg-primary flex items-center justify-center"><div className="font-black text-2xl">Fleet Manager</div></div>;
+  }
+  if (!user) return <Login />;
+  return (
+    <StoreProvider key={user.id} userId={user.id}>
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        <Router />
+      </WouterRouter>
     </StoreProvider>
   );
 }

@@ -1,14 +1,15 @@
 import { Layout } from "@/components/layout";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
+import { useEffect } from "react";
 import { LogOut, CheckCircle2, UserCircle, ImagePlus, Download, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase, supabaseConfigured } from "@/lib/supabase";
-import { useEffect } from "react";
+import { useAuth } from "@/lib/auth";
 
 export default function Settings() {
   const { state, dispatch } = useStore();
   const { toast } = useToast();
+  const { user, signingIn: authBusy, signOut } = useAuth();
   
   const [businessName, setBusinessName] = useState(state.settings.businessName);
   const [ownerName, setOwnerName] = useState(state.settings.ownerName || "");
@@ -18,67 +19,24 @@ export default function Settings() {
   const [upiId, setUpiId] = useState(state.settings.upiId || "");
   const [bankName, setBankName] = useState(state.settings.bankName || "");
   const [gstNumber, setGstNumber] = useState(state.settings.gstNumber || "");
-  const [authUser, setAuthUser] = useState<{ email?: string; name?: string } | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
 
   useEffect(() => {
-    if (!supabaseConfigured) return;
-
-    const updateAuthUser = (user: { email?: string; user_metadata?: Record<string, unknown> } | null) => {
-      setAuthUser(user ? {
-        email: user.email,
-        name: typeof user.user_metadata?.full_name === "string"
-          ? user.user_metadata.full_name
-          : typeof user.user_metadata?.name === "string"
-            ? user.user_metadata.name
-            : undefined,
-      } : null);
-    };
-
-    supabase.auth.getSession().then(({ data }) => updateAuthUser(data.session?.user || null));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      updateAuthUser(session?.user || null);
-      setAuthBusy(false);
-    });
-
-    const callbackError = new URLSearchParams(window.location.search).get("error_description")
-      || new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description");
-    if (callbackError) {
-      toast({ title: "Google sign-in was not completed", description: decodeURIComponent(callbackError.replace(/\+/g, " ")) });
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    return () => listener.subscription.unsubscribe();
-  }, [toast]);
-
-  const handleGoogleSignIn = async () => {
-    if (!supabaseConfigured) {
-      toast({ title: "Supabase is not configured", description: "Add the Supabase URL and publishable key to enable Google Sign-In." });
-      return;
-    }
-    setAuthBusy(true);
-    const appBaseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
-    const redirectTo = new URL("settings", appBaseUrl).toString();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    if (error) {
-      toast({ title: "Sign-in failed", description: error.message });
-      setAuthBusy(false);
-    }
-  };
-
+    setBusinessName(state.settings.businessName);
+    setOwnerName(state.settings.ownerName || "");
+    setPhone(state.settings.phone || "");
+    setAddress(state.settings.address || "");
+    setEmail(state.settings.email || "");
+    setUpiId(state.settings.upiId || "");
+    setBankName(state.settings.bankName || "");
+    setGstNumber(state.settings.gstNumber || "");
+  }, [state.settings]);
   const handleLogout = async () => {
-    setAuthBusy(true);
-    const { error } = await supabase.auth.signOut();
+    const { error } = await signOut();
     if (error) {
       toast({ title: "Could not sign out", description: error.message });
     } else {
-      setAuthUser(null);
-      toast({ title: "Signed out", description: "Your local fleet records are still available on this device." });
+      toast({ title: "Signed out", description: "Your Google account data remains safely linked to your account." });
     }
-    setAuthBusy(false);
   };
 
   const handleSave = () => {
@@ -111,9 +69,9 @@ export default function Settings() {
   };
 
   const resetData = () => {
-    if (!window.confirm("Reset all local fleet records? This cannot be undone.")) return;
-    localStorage.removeItem("fleet-manager-state");
-    window.location.reload();
+    if (!window.confirm("Reset all fleet records for this Google account? This cannot be undone.")) return;
+    dispatch({ type: "RESET_DATA" });
+    toast({ title: "Fleet records reset", description: "This account now has a fresh workspace." });
   };
 
   return (
@@ -129,9 +87,8 @@ export default function Settings() {
             <UserCircle size={40} className="text-muted-foreground" />
             <div>
               <h3 className="font-bold text-lg">Admin Account</h3>
-            <p className="text-sm text-muted-foreground">
-              {authUser ? authUser.email : "Local workspace"}
-            </p>
+              <p className="text-sm text-muted-foreground">{user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email}</p>
+              <p className="text-xs text-green-600 font-semibold mt-1">Google account workspace synced</p>
             </div>
           </div>
           <div className="rounded-xl border border-border bg-muted/40 p-4">
@@ -214,29 +171,16 @@ export default function Settings() {
                <button onClick={resetData} className="text-destructive font-bold text-sm flex items-center gap-1"><Trash2 size={14} /> Reset</button>
             </div>
           </div>
-          {authUser ? (
-            <button
-              data-testid="button-logout"
-              type="button"
-              disabled={authBusy}
-              onClick={handleLogout}
-              className="w-full border-2 border-destructive/20 text-destructive font-bold p-4 rounded-xl flex items-center justify-center gap-2 active:bg-destructive/10 disabled:opacity-50"
-            >
-              <LogOut size={20} />
-              {authBusy ? "Signing out..." : "Logout"}
-            </button>
-          ) : (
-            <button
-              data-testid="button-google-sign-in"
-              type="button"
-              disabled={authBusy}
-              onClick={handleGoogleSignIn}
-              className="w-full bg-foreground text-background font-bold p-4 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50"
-            >
-              <span className="text-lg font-black">G</span>
-              {authBusy ? "Connecting..." : "Continue with Google"}
-            </button>
-          )}
+          <button
+            data-testid="button-logout"
+            type="button"
+            disabled={authBusy}
+            onClick={handleLogout}
+            className="w-full border-2 border-destructive/20 text-destructive font-bold p-4 rounded-xl flex items-center justify-center gap-2 active:bg-destructive/10 disabled:opacity-50"
+          >
+            <LogOut size={20} />
+            {authBusy ? "Signing out..." : "Logout"}
+          </button>
         </section>
         
       </div>
