@@ -26,3 +26,9 @@ Work-log measurement is vehicle-specific: JCB work uses hours, while Hywa and Ti
 **Why:** Owners commonly price these machine types using different operating measures, and a transferred work entry should have one authoritative customer-ledger location rather than appearing in both sections.
 
 **How to apply:** Keep receipt generation free of QR markup; QR payment requests remain a separate Khata action. Preserve optional log description and non-mandatory log fields when extending the form.
+
+Logs history is an all-dates view of untransferred work logs; Khata is the authoritative destination after transfer, with linked work deletion removing both the ledger entry and source log.
+
+**Why:** The mobile reference shows multiple dated entries together and users need to edit or remove entries without duplicates reappearing in Logs.
+
+**How to apply:** Keep selection actions visible as Khata/Delete, preserve edit-before-transfer, and keep receipt fields driven by Settings plus the customer’s selected payment mode.

@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone, Download, Share2, ReceiptText, CheckCircle2, Clock3, Search } from "lucide-react";
+import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone, Download, Share2, ReceiptText, CheckCircle2, Clock3, Search, Trash2 } from "lucide-react";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createInvoiceHtml, InvoiceData } from "@/lib/invoice";
@@ -15,9 +15,10 @@ export default function Khata() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [invoicePreview, setInvoicePreview] = useState("");
   const [search, setSearch] = useState("");
+  const [khataTab, setKhataTab] = useState<"work" | "payments">("work");
 
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
-  const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "" });
+  const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "", paymentMode: "UPI" });
 
   const handleCustomerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +32,7 @@ export default function Khata() {
     if (!selectedCustomer) return;
     dispatch({ type: 'ADD_LEDGER', payload: { ...ledgerData, customerId: selectedCustomer } });
     setIsLedgerOpen(false);
-    setLedgerData({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "" });
+    setLedgerData({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "", paymentMode: "UPI" });
   };
 
   const getCustomerBalance = (customerId: string) => {
@@ -66,13 +67,17 @@ export default function Khata() {
     const total = charges.reduce((sum, entry) => sum + entry.amount, 0);
     const balanceDue = getCustomerBalance(customer.id);
     return {
-      invoiceId: `FM-${new Date().getFullYear()}-${customer.id.slice(-6).toUpperCase()}`,
+      invoiceId: `RC-${new Date().toISOString().slice(0, 10)}-${customer.phone.replace(/\D/g, "").slice(-4) || customer.id.slice(-4).toUpperCase()}`,
       issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      issuedTime: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
       businessName: state.settings.businessName || "Fleet Manager",
+      companyName: state.settings.companyName || state.settings.businessName || "Fleet Manager",
       ownerName: state.settings.ownerName || "",
       phone: state.settings.phone || "",
       email: state.settings.email || "",
       address: state.settings.address || "",
+      stampAddress: state.settings.stampAddress || "",
+      stampCity: state.settings.stampCity || "",
       bankName: state.settings.bankName || "",
       gstNumber: state.settings.gstNumber || "",
       upiId: state.settings.upiId || "",
@@ -84,26 +89,27 @@ export default function Khata() {
       workStart: dates[0] || new Date().toISOString().split("T")[0],
       workEnd: dates[dates.length - 1] || new Date().toISOString().split("T")[0],
       serviceLocation: customer.address || "",
-      lines: charges.map((entry, index) => ({
-        date: entry.date,
-        description: entry.description,
-        amount: entry.amount,
-        duration: relatedLogs[index]
-          ? (() => {
-              const relatedLog = relatedLogs[index]!;
-              const vehicle = state.vehicles.find((item) => item.id === relatedLog.vehicleId);
-              if (vehicle?.type === "Hywa" || vehicle?.type === "Tipper") {
-                return `Trips: ${relatedLog.trips || 0} • Diesel: ${relatedLog.diesel || 0} L`;
-              }
-              return relatedLog.hours ? `Work Duration: ${relatedLog.hours} hours` : undefined;
-            })()
-          : undefined,
-      })),
+      lines: charges.map((entry) => {
+        const relatedLog = state.logs.find((log) => log.id === entry.logId);
+        const vehicle = relatedLog ? state.vehicles.find((item) => item.id === relatedLog.vehicleId) : undefined;
+        const duration = relatedLog
+          ? vehicle?.type === "Hywa" || vehicle?.type === "Tipper"
+            ? `Trips: ${relatedLog.trips || 0} • Diesel: ${relatedLog.diesel || 0} L`
+            : relatedLog.hours ? `Work Duration: ${relatedLog.hours} hours` : undefined
+          : undefined;
+        return {
+          date: entry.date,
+          description: `${vehicle?.name ? `${vehicle.name} - ` : ""}${entry.description || customer.address || customer.company || "Work entry"}`,
+          amount: entry.amount,
+          duration,
+        };
+      }),
       total,
       balanceDue,
        status: customer.paymentStatus === "Paid" || balanceDue <= 0 ? "PAID" : "DUE",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
+      paymentMode: payments[0]?.paymentMode || "—",
     };
   };
 
@@ -287,6 +293,16 @@ export default function Khata() {
                             <option value="Charge">Bill/Charge Added</option>
                           </select>
                         </div>
+                         <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Payment Mode</label>
+                          <select value={ledgerData.paymentMode || "UPI"} onChange={e => setLedgerData({...ledgerData, paymentMode: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
+                            <option value="UPI">UPI</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Other">Other</option>
+                          </select>
+                         </div>
                         <div>
                           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Notes / Reference</label>
                           <input value={ledgerData.description} onChange={e => setLedgerData({...ledgerData, description: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="UPI txn id or cash" />
@@ -330,16 +346,28 @@ export default function Khata() {
             const total = getCustomerBalance(customer.id);
             return (
               <>
-                <DialogHeader><DialogTitle className="text-xl font-bold">{customer.name} ledger</DialogTitle></DialogHeader>
-                <div className="rounded-2xl bg-primary/10 p-5 text-center my-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Outstanding total</div>
-                  <div className="text-3xl font-black mt-1">₹{total.toLocaleString()}</div>
+                 <DialogHeader><DialogTitle className="text-xl font-bold">{customer.name}</DialogTitle><p className="text-sm text-muted-foreground">{customer.phone}</p></DialogHeader>
+                 <div className="rounded-2xl border border-border bg-card p-4 my-3">
+                   <div className="grid grid-cols-3 gap-2 text-center">
+                     <div><div className="text-lg font-black text-primary">₹{charges.reduce((sum, entry) => sum + entry.amount, 0).toLocaleString()}</div><div className="text-[10px] text-muted-foreground">Total Work</div></div>
+                     <div><div className="text-lg font-black text-emerald-400">₹{state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").reduce((sum, entry) => sum + entry.amount, 0).toLocaleString()}</div><div className="text-[10px] text-muted-foreground">Received</div></div>
+                     <div><div className="text-lg font-black text-rose-400">₹{total.toLocaleString()}</div><div className="text-[10px] text-muted-foreground">Outstanding</div></div>
+                   </div>
+                   <div className="mt-4 grid grid-cols-2 gap-2">
+                     <button onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: customer.id, paymentStatus: "Paid", paymentDate: new Date().toISOString().split("T")[0] } })} className="rounded-xl bg-emerald-500 p-3 font-bold text-white">✓ Paid</button>
+                     <button onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: customer.id, paymentStatus: "Delay" } })} className="rounded-xl border border-amber-400/50 bg-amber-400/10 p-3 font-bold text-amber-300">◷ Delay</button>
+                   </div>
                 </div>
-                <div className="space-y-2">
-                  {charges.length === 0 ? <p className="text-sm text-muted-foreground">No work entries yet.</p> : charges.map((entry) => {
+                 <div className="grid grid-cols-2 border-b border-border">
+                   <button onClick={() => setKhataTab("work")} className={`py-3 text-sm font-bold ${khataTab === "work" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}>Work Logs ({charges.length})</button>
+                   <button onClick={() => setKhataTab("payments")} className={`py-3 text-sm font-bold ${khataTab === "payments" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}>Payments ({state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").length})</button>
+                 </div>
+                 <div className="space-y-2 mt-3">
+                   {khataTab === "work" && (charges.length === 0 ? <p className="text-sm text-muted-foreground">No work entries yet.</p> : charges.map((entry) => {
                     const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
-                    return <div key={entry.id} className="flex items-center justify-between rounded-xl bg-muted p-3"><div><div className="font-bold text-sm">{entry.description}</div><div className="text-xs text-muted-foreground">{entry.date} • {vehicle?.name || "Vehicle"}</div></div><div className="font-black">₹{entry.amount.toLocaleString()}</div></div>;
-                  })}
+                     return <div key={entry.id} className="flex items-center justify-between rounded-xl bg-muted p-3"><div><div className="font-bold text-sm">{entry.description || "Work entry"}</div><div className="text-xs text-muted-foreground">{entry.date} • {vehicle?.name || "Vehicle"}</div></div><div className="flex items-center gap-2"><div className="font-black">₹{entry.amount.toLocaleString()}</div><button type="button" aria-label="Delete ledger entry" onClick={() => { if (!window.confirm("Delete this Khata work entry?")) return; if (entry.logId) dispatch({ type: "DELETE_LOG", payload: entry.logId }); else dispatch({ type: "DELETE_LEDGER", payload: entry.id }); }} className="text-rose-300"><Trash2 size={15} /></button></div></div>;
+                   }))}
+                   {khataTab === "payments" && state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").map((entry) => <div key={entry.id} className="flex items-center justify-between rounded-xl bg-muted p-3"><div><div className="font-bold text-sm">{entry.paymentMode || "Payment"} • Payment</div><div className="text-xs text-muted-foreground">{entry.date} • {entry.description || "Received"}</div></div><div className="flex items-center gap-2"><div className="font-black text-emerald-400">₹{entry.amount.toLocaleString()}</div><button type="button" aria-label="Delete payment entry" onClick={() => { if (window.confirm("Delete this payment?")) dispatch({ type: "DELETE_LEDGER", payload: entry.id }); }} className="text-rose-300"><Trash2 size={15} /></button></div></div>)}
                 </div>
                  <div className="grid grid-cols-2 gap-2 mt-4">
                   <button onClick={() => generatePaymentQr(customer)} className="bg-primary text-primary-foreground p-3 rounded-xl font-bold">Generate QR</button>

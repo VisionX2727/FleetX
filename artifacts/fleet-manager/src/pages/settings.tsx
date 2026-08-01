@@ -15,9 +15,12 @@ export default function Settings() {
   const { user, signingIn: authBusy, signOut } = useAuth();
   
   const [businessName, setBusinessName] = useState(state.settings.businessName);
+  const [companyName, setCompanyName] = useState(state.settings.companyName || "");
   const [ownerName, setOwnerName] = useState(state.settings.ownerName || "");
   const [phone, setPhone] = useState(state.settings.phone || "");
   const [address, setAddress] = useState(state.settings.address || "");
+  const [stampAddress, setStampAddress] = useState(state.settings.stampAddress || "");
+  const [stampCity, setStampCity] = useState(state.settings.stampCity || "");
   const [email, setEmail] = useState(state.settings.email || "");
   const [upiId, setUpiId] = useState(state.settings.upiId || "");
   const [bankName, setBankName] = useState(state.settings.bankName || "");
@@ -25,9 +28,12 @@ export default function Settings() {
 
   useEffect(() => {
     setBusinessName(state.settings.businessName);
+    setCompanyName(state.settings.companyName || "");
     setOwnerName(state.settings.ownerName || "");
     setPhone(state.settings.phone || "");
     setAddress(state.settings.address || "");
+    setStampAddress(state.settings.stampAddress || "");
+    setStampCity(state.settings.stampCity || "");
     setEmail(state.settings.email || "");
     setUpiId(state.settings.upiId || "");
     setBankName(state.settings.bankName || "");
@@ -45,7 +51,7 @@ export default function Settings() {
   const handleSave = () => {
     dispatch({ 
       type: 'UPDATE_SETTINGS', 
-      payload: { businessName, ownerName, phone, address, email, upiId, bankName, gstNumber }
+      payload: { businessName, companyName, ownerName, phone, address, stampAddress, stampCity, email, upiId, bankName, gstNumber }
     });
     toast({
       title: "Settings Saved",
@@ -108,10 +114,13 @@ export default function Settings() {
 
         <section className="fm-settings-card space-y-3">
           <div className="fm-settings-section-title">Owner / Business Info</div>
-          <label className="fm-settings-label">Owner / Company Name<input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Your Name / Company" /></label>
+          <label className="fm-settings-label">Company Name<input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Rajmudra Construction" /></label>
+          <label className="fm-settings-label">Owner Name<input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Your name" /></label>
           <label className="fm-settings-label">Phone Number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" /></label>
           <label className="fm-settings-label">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" /></label>
           <label className="fm-settings-label">Address<textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="Address" /></label>
+          <label className="fm-settings-label">Stamp Address<textarea value={stampAddress} onChange={e => setStampAddress(e.target.value)} placeholder="Address printed in stamp" /></label>
+          <label className="fm-settings-label">Stamp City<input value={stampCity} onChange={e => setStampCity(e.target.value)} placeholder="Pune" /></label>
         </section>
 
         <section className="fm-settings-card space-y-3">

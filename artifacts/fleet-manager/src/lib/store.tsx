@@ -9,11 +9,11 @@ export type Vehicle = {
 export type VehicleDay = { id: string; date: string; vehicleId: string; amount: number; diesel: number; trips: number; hours: number; status: Vehicle['status']; notes?: string };
 export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
 export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string };
-export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string };
+export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string; paymentMode?: string };
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
-export type Settings = { businessName: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; isLoggedIn: boolean };
+export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; stampAddress?: string; stampCity?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; isLoggedIn: boolean };
 
 export type AppState = {
   vehicles: Vehicle[];
@@ -27,7 +27,7 @@ export type AppState = {
   settings: Settings;
 };
 
-const defaultSettings: Settings = { businessName: 'Fleet Manager', ownerName: '', phone: '', address: '', email: '', isLoggedIn: true };
+const defaultSettings: Settings = { businessName: 'Fleet Manager', companyName: '', ownerName: '', phone: '', address: '', stampAddress: '', stampCity: '', email: '', isLoggedIn: true };
 
 const defaultState: AppState = {
   vehicles: [],
@@ -40,6 +40,10 @@ const defaultState: AppState = {
   driverPays: [],
   settings: defaultSettings,
 };
+
+function createEntityId(prefix: string) {
+  return `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function normalizeState(value: Partial<AppState>): AppState {
   const fresh = cloneDefaultState();
@@ -169,11 +173,15 @@ export function StoreProvider({
         
         // Log Actions
         case 'ADD_LOG':
-          return { ...prev, logs: [...prev.logs, { id: `l${Date.now()}`, ...action.payload }] };
+          return { ...prev, logs: [...prev.logs, { id: createEntityId("l"), ...action.payload }] };
         case 'UPDATE_LOG':
           return { ...prev, logs: prev.logs.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l) };
         case 'DELETE_LOG':
-          return { ...prev, logs: prev.logs.filter(l => l.id !== action.payload) };
+          return {
+            ...prev,
+            logs: prev.logs.filter(l => l.id !== action.payload),
+            ledgers: prev.ledgers.filter(entry => entry.logId !== action.payload),
+          };
 
         // Customer Actions
         case 'ADD_CUSTOMER':
@@ -185,7 +193,11 @@ export function StoreProvider({
         
         // Ledger Actions
         case 'ADD_LEDGER':
-          return { ...prev, ledgers: [...prev.ledgers, { id: `le${Date.now()}`, ...action.payload }] };
+          return { ...prev, ledgers: [...prev.ledgers, { id: createEntityId("le"), ...action.payload }] };
+        case 'UPDATE_LEDGER':
+          return { ...prev, ledgers: prev.ledgers.map(entry => entry.id === action.payload.id ? { ...entry, ...action.payload } : entry) };
+        case 'DELETE_LEDGER':
+          return { ...prev, ledgers: prev.ledgers.filter(entry => entry.id !== action.payload) };
         
         // Fuel Actions
         case 'ADD_FUEL':

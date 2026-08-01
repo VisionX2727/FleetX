@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, WorkLog } from "@/lib/store";
 import { useRef, useState } from "react";
-import { Plus, CheckCircle2, ClipboardX, BookOpen, Truck as TruckIcon } from "lucide-react";
+import { Plus, ClipboardX, BookOpen, Truck as TruckIcon, Pencil, X, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function Logs() {
@@ -11,6 +11,7 @@ export default function Logs() {
   const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
   const [khataCustomerId, setKhataCustomerId] = useState("");
   const [isKhataOpen, setIsKhataOpen] = useState(false);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -23,14 +24,25 @@ export default function Logs() {
   const tripBasedVehicle = selectedVehicle?.type === "Hywa" || selectedVehicle?.type === "Tipper";
   const khataLogIds = new Set(state.ledgers.map((entry) => entry.logId).filter(Boolean));
   const filteredLogs = state.logs
-    .filter(l => l.date === filterDate && !khataLogIds.has(l.id))
-    .sort((a,b) => b.id.localeCompare(a.id));
+    .filter(l => !khataLogIds.has(l.id))
+    .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    dispatch({ type: 'ADD_LOG', payload: formData });
+    if (editingLogId) {
+      dispatch({ type: "UPDATE_LOG", payload: { ...formData, id: editingLogId } });
+    } else {
+      dispatch({ type: 'ADD_LOG', payload: formData });
+    }
     setIsAddOpen(false);
+    setEditingLogId(null);
     setFormData({ date: filterDate, vehicleId: state.vehicles[0]?.id || "", driverId: state.drivers[0]?.id || "", customerId: "", description: "", hours: 0, trips: 0, diesel: 0, amount: 0, status: "Pending" });
+  };
+
+  const openEditLog = (log: WorkLog) => {
+    setEditingLogId(log.id);
+    setFormData({ ...log });
+    setIsAddOpen(true);
   };
 
   const selectVehicle = (vehicleId: string) => {
@@ -123,7 +135,7 @@ export default function Logs() {
             </DialogTrigger>
             <DialogContent className="w-[90vw] max-w-md rounded-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold">Add Work Log</DialogTitle>
+                <DialogTitle className="text-xl font-bold">{editingLogId ? "Edit Work Log" : "Add Work Log"}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div>
@@ -179,7 +191,7 @@ export default function Logs() {
                   </div>
                 </div>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
-                  Save Log
+                  {editingLogId ? "Save Changes" : "Save Log"}
                 </button>
               </form>
             </DialogContent>
@@ -208,22 +220,13 @@ export default function Logs() {
         </div>
       )}
       {activeTab === "history" && (
-        <div className="px-5 py-6 pb-24">
-          <div className="flex gap-2 mb-4">
-          <input 
-            type="date" 
-            value={filterDate} 
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="flex-1 bg-muted border-none rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-primary"
-          />
-          </div>
+         <div className="px-5 py-6 pb-24">
         {selectedLogs.length > 0 && (
-          <div className="bg-foreground text-background rounded-2xl p-4 mb-4 flex items-center justify-between sticky top-4 z-20 shadow-xl">
-            <span className="font-bold text-sm">{selectedLogs.length} selected</span>
+           <div className="bg-[#1b2d3c] text-white rounded-2xl p-3 mb-4 flex items-center justify-between sticky top-0 z-20 shadow-xl border border-border">
+             <div className="flex items-center gap-2"><button type="button" aria-label="Clear selection" onClick={() => setSelectedLogs([])} className="p-1"><X size={22} /></button><span className="font-bold text-base">{selectedLogs.length} selected</span></div>
             <div className="flex gap-2">
-              <button onClick={markSelectedPaid} className="bg-primary text-primary-foreground p-2 rounded-xl text-xs font-bold active:scale-95">Mark Paid</button>
               <button onClick={() => setIsKhataOpen(true)} className="bg-white/10 text-white p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><BookOpen size={13} /> Add to Khata</button>
-              <button onClick={deleteSelected} className="bg-destructive text-destructive-foreground p-2 rounded-xl text-xs font-bold active:scale-95">Delete</button>
+               <button onClick={deleteSelected} className="border border-destructive/50 bg-destructive/10 text-destructive p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><Trash2 size={13} /> Delete</button>
             </div>
           </div>
         )}
@@ -235,8 +238,8 @@ export default function Logs() {
           {filteredLogs.length === 0 ? (
             <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
               <ClipboardX size={48} className="mx-auto text-muted-foreground opacity-30 mb-4" />
-              <h3 className="text-lg font-bold">No logs for this date</h3>
-              <p className="text-sm text-muted-foreground mt-1">Select another date or add a new log.</p>
+              <h3 className="text-lg font-bold">No logs yet</h3>
+              <p className="text-sm text-muted-foreground mt-1">Add a work entry to see it here.</p>
             </div>
           ) : (
             filteredLogs.map(log => {
@@ -256,19 +259,21 @@ export default function Logs() {
                    onContextMenu={(event) => event.preventDefault()}
                   className={`bg-card rounded-2xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'}`}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                   <div className="flex justify-between items-start mb-2">
+                     <div className={`mr-3 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+                       {isSelected ? "✓" : ""}
+                     </div>
                     <div className="flex-1">
+                        <div className="text-xs text-muted-foreground">{log.date}</div>
                        <h4 className="font-bold text-base leading-tight">{log.description || "Work entry"}</h4>
                        <div className="text-xs font-semibold text-muted-foreground mt-1">
                           {vehicle?.name || "Vehicle"} {driver ? `• ${driver.name}` : ""} {vehicle?.type === "Hywa" || vehicle?.type === "Tipper" ? `• ${log.trips || 0} trips • ${log.diesel || 0} L diesel` : `• ${log.hours || 0} hrs`} {customer ? `• ${customer.name}` : ""}
                       </div>
+                       {customer && <div className="mt-1 text-xs font-semibold text-primary">{customer.name}</div>}
                     </div>
                     <div className="text-right ml-4">
                       <div className="font-black text-lg">₹{log.amount.toLocaleString()}</div>
-                      <div className={`text-[10px] font-bold uppercase tracking-wide mt-1 flex items-center justify-end gap-1 ${log.status === 'Paid' ? 'text-green-600' : 'text-orange-500'}`}>
-                        {log.status === 'Paid' && <CheckCircle2 size={10} />}
-                        {log.status}
-                      </div>
+                       <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); openEditLog(log); }} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] font-bold text-primary"><Pencil size={11} /> Edit</button>
                     </div>
                   </div>
                 </div>
