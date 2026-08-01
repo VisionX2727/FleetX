@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useEffect, useState } from "react";
-import { Delete } from "lucide-react";
+import { Delete, Calculator as CalculatorIcon } from "lucide-react";
 
 export default function Calculator() {
   const [display, setDisplay] = useState(() => localStorage.getItem("fleet-calculator-display") || "0");
@@ -49,17 +49,21 @@ export default function Calculator() {
 
   return (
     <Layout>
-      <div className="h-[calc(100vh-80px)] flex flex-col bg-card">
-        <div className="pt-12 px-6 flex-1 flex flex-col justify-end pb-8">
-          <div className="text-right text-muted-foreground font-medium text-lg h-8 mb-2">
+      <div className="min-h-[calc(100dvh-32px)] bg-background">
+        <header className="flex items-center gap-3 px-7 pt-7 text-[27px] font-black">
+          <CalculatorIcon className="text-primary" size={24} />
+          <h1>Calculator</h1>
+        </header>
+        <div className="fm-calculator-display">
+          <div className="w-full text-right">
+            <div className="text-right text-sm text-muted-foreground font-medium h-6">
             {equation}
-          </div>
-          <div className="text-right text-6xl font-black tracking-tighter text-foreground overflow-x-auto no-scrollbar">
-            {display}
+            </div>
+            <div className="text-6xl font-black tracking-tighter text-foreground overflow-x-auto no-scrollbar">{display}</div>
           </div>
         </div>
-        <div className="bg-muted/50 p-6 rounded-t-3xl border-t border-border">
-          <div className="grid grid-cols-4 gap-4">
+        <div className="mt-20">
+          <div className="fm-calculator-grid">
             {buttons.flat().map((btn, i) => {
               const isOp = ['/', '*', '-', '+', '='].includes(btn);
               const isAction = ['C', '⌫', '%'].includes(btn);
@@ -72,10 +76,7 @@ export default function Calculator() {
                     else if (btn === '=') calculate();
                     else append(btn);
                   }}
-                  className={`aspect-square rounded-2xl text-2xl font-bold flex items-center justify-center transition-transform active:scale-90
-                    ${isOp ? 'bg-primary text-primary-foreground shadow-sm' : 
-                      isAction ? 'bg-secondary text-secondary-foreground shadow-sm' : 
-                      'bg-background border border-border shadow-sm text-foreground'}`}
+                   className={`fm-calculator-button ${isOp ? 'operator' : isAction ? 'action' : ''} ${btn === "=" ? "equals" : ""}`}
                 >
                   {btn === '⌫' ? <Delete size={24} /> : btn}
                 </button>

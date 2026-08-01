@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone, Download, Share2, ReceiptText, CheckCircle2, Clock3 } from "lucide-react";
+import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone, Download, Share2, ReceiptText, CheckCircle2, Clock3, Search } from "lucide-react";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createInvoiceHtml, InvoiceData } from "@/lib/invoice";
@@ -14,6 +14,7 @@ export default function Khata() {
   const [receiptCustomerId, setReceiptCustomerId] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [invoicePreview, setInvoicePreview] = useState("");
+  const [search, setSearch] = useState("");
 
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({ date: new Date().toISOString().split('T')[0], type: "Payment", amount: 0, description: "" });
@@ -173,7 +174,13 @@ export default function Khata() {
   return (
     <Layout>
       <div className="fm-page-header">
-        <div className="flex justify-between items-end">
+        <div>
+          <h1>Khata Book</h1>
+          <p>Customer accounts</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" className="fm-icon-button fm-primary-icon" onClick={() => setIsAddOpen(true)}><Plus size={24} strokeWidth={3} /></button>
+        <div className="hidden">
           <div>
             <h1>Khata Book</h1>
             <p>Customer accounts and work billing</p>
@@ -212,21 +219,24 @@ export default function Khata() {
             </DialogContent>
           </Dialog>
         </div>
+        </div>
       </div>
 
-      <div className="px-6 py-6 space-y-4">
-        {state.customers.length === 0 ? (
+      <div className="px-5 py-5 pb-24 space-y-4">
+        <div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customers" className="w-full rounded-xl border border-border bg-card py-3 pl-11 pr-4 text-sm font-semibold outline-none focus:border-primary" /></div>
+        <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs text-muted-foreground">Add customers and link daily work to keep every balance and receipt in one place.</div>
+        {state.customers.filter((customer) => `${customer.name} ${customer.company || ""} ${customer.phone}`.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
           <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
             <Users size={48} className="mx-auto text-muted-foreground opacity-30 mb-4" />
             <h3 className="text-lg font-bold">No customers yet</h3>
             <p className="text-sm text-muted-foreground mt-1">Add your clients to manage their ledgers.</p>
           </div>
         ) : (
-           [...state.customers].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed))).map(customer => {
+           [...state.customers].filter((customer) => `${customer.name} ${customer.company || ""} ${customer.phone}`.toLowerCase().includes(search.toLowerCase())).sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed))).map(customer => {
             const bal = getCustomerBalance(customer.id);
             const isDue = bal > 0;
             return (
-              <div key={customer.id} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+              <div key={customer.id} className="fm-card p-4">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-bold">{customer.name}</h3>

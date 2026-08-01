@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, WorkLog } from "@/lib/store";
 import { useRef, useState } from "react";
-import { Plus, CheckCircle2, ClipboardX, BookOpen } from "lucide-react";
+import { Plus, CheckCircle2, ClipboardX, BookOpen, Truck as TruckIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function Logs() {
@@ -11,6 +11,7 @@ export default function Logs() {
   const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
   const [khataCustomerId, setKhataCustomerId] = useState("");
   const [isKhataOpen, setIsKhataOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
   
@@ -88,11 +89,13 @@ export default function Logs() {
   return (
     <Layout>
       <div className="fm-page-header">
-        <div className="flex justify-between items-end mb-4">
-          <div>
-            <h1>Logs</h1>
-            <p>Long press a log to select multiple</p>
-          </div>
+        <div>
+          <h1>Daily Work Entry</h1>
+        </div>
+        <button type="button" className="fm-icon-button fm-primary-icon" onClick={() => setIsAddOpen(true)} aria-label="Add work entry">
+          <Plus size={25} strokeWidth={3} />
+        </button>
+        <div className="hidden">
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <button 
@@ -157,18 +160,38 @@ export default function Logs() {
             </DialogContent>
           </Dialog>
         </div>
-        
-        <div className="flex gap-2">
+      </div>
+      <div className="fm-tab-row">
+        <button className={`fm-tab ${activeTab === "new" ? "is-active" : ""}`} onClick={() => setActiveTab("new")}>New Entry</button>
+        <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>History ({state.logs.length})</button>
+      </div>
+      {activeTab === "new" && (
+        <div className="px-5 pt-6">
+          <div className="mb-4 text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">Select vehicle to add work entry</div>
+          {state.vehicles.length === 0 ? (
+            <div className="fm-empty-state min-h-48 rounded-[20px] border border-border bg-card">
+              <TruckIcon size={48} />
+              <p>Add vehicles in Fleet tab first</p>
+            </div>
+          ) : (
+            <div className="fm-stack">{state.vehicles.map((vehicle) => (
+              <button key={vehicle.id} type="button" onClick={() => { setFormData({ ...formData, date: filterDate, vehicleId: vehicle.id, driverId: state.drivers.find((driver) => driver.vehicleId === vehicle.id)?.id || "" }); setIsAddOpen(true); }} className="fm-list-row text-left">
+                <span><strong>{vehicle.name}</strong><small>{vehicle.type} • {vehicle.regNumber}</small></span><Plus className="text-primary" size={20} />
+              </button>
+            ))}</div>
+          )}
+        </div>
+      )}
+      {activeTab === "history" && (
+        <div className="px-5 py-6 pb-24">
+          <div className="flex gap-2 mb-4">
           <input 
             type="date" 
             value={filterDate} 
             onChange={(e) => setFilterDate(e.target.value)}
             className="flex-1 bg-muted border-none rounded-xl px-4 py-3 font-bold text-sm outline-none focus:ring-2 focus:ring-primary"
           />
-        </div>
-      </div>
-
-      <div className="px-6 py-6 pb-24">
+          </div>
         {selectedLogs.length > 0 && (
           <div className="bg-foreground text-background rounded-2xl p-4 mb-4 flex items-center justify-between sticky top-4 z-20 shadow-xl">
             <span className="font-bold text-sm">{selectedLogs.length} selected</span>
@@ -230,7 +253,8 @@ export default function Logs() {
             })
           )}
         </div>
-      </div>
+        </div>
+      )}
       <Dialog open={isKhataOpen} onOpenChange={setIsKhataOpen}>
         <DialogContent className="w-[90vw] max-w-md rounded-2xl">
           <DialogHeader><DialogTitle className="text-xl font-bold">Add selected work to Khata</DialogTitle></DialogHeader>

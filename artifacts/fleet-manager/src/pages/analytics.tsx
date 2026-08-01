@@ -1,44 +1,67 @@
 import { Layout } from "@/components/layout";
 import { useStore } from "@/lib/store";
-import { BarChart3, TrendingUp, TrendingDown, IndianRupee, Fuel, Users } from "lucide-react";
+import { BarChart3, TrendingUp, Fuel, Users, Share2, Layers3, LineChart } from "lucide-react";
 import { useState } from "react";
 
 export default function Analytics() {
   const { state } = useStore();
   const [filter, setFilter] = useState<"All" | string>("All");
+  const [range, setRange] = useState<"Today" | "This Week" | "This Month">("Today");
   const month = new Date().toISOString().substring(0, 7);
+  const today = new Date().toISOString().split("T")[0];
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 6);
+  const inRange = (date: string) => {
+    if (range === "Today") return date === today;
+    if (range === "This Week") return date >= weekStart.toISOString().split("T")[0] && date <= today;
+    return date.startsWith(month);
+  };
 
-  const relevantLogs = state.logs.filter((log) => (filter === "All" || log.vehicleId === filter) && log.date.startsWith(month));
-  const relevantDays = state.fleetDays.filter((day) => (filter === "All" || day.vehicleId === filter) && day.date.startsWith(month));
-  const relevantFuel = state.fuelRecords.filter((fuel) => (filter === "All" || fuel.vehicleId === filter) && fuel.date.startsWith(month));
+  const relevantLogs = state.logs.filter((log) => (filter === "All" || log.vehicleId === filter) && inRange(log.date));
+  const relevantDays = state.fleetDays.filter((day) => (filter === "All" || day.vehicleId === filter) && inRange(day.date));
+  const relevantFuel = state.fuelRecords.filter((fuel) => (filter === "All" || fuel.vehicleId === filter) && inRange(fuel.date));
   const totalRevenue = relevantLogs.reduce((sum, log) => sum + log.amount, 0) + relevantDays.reduce((sum, day) => sum + day.amount, 0);
   const totalFuel = relevantFuel.reduce((sum, fuel) => sum + fuel.cost, 0);
+  const fuelLiters = relevantFuel.reduce((sum, fuel) => sum + fuel.quantity, 0) + relevantDays.reduce((sum, day) => sum + day.diesel, 0);
   const totalHours = relevantLogs.reduce((sum, log) => sum + log.hours, 0) + relevantDays.reduce((sum, day) => sum + day.hours, 0);
   const driverCost = relevantLogs.reduce((sum, log) => sum + (state.drivers.find((driver) => driver.id === log.driverId)?.dailyRate || 0), 0);
   const netProfit = totalRevenue - totalFuel - driverCost;
-  const ringStyle = { background: `conic-gradient(${netProfit >= 0 ? "#34d399" : "#fb7185"} 0 72%, rgba(255,255,255,.08) 72% 100%)` };
+  const workingDays = new Set([...relevantLogs.map((log) => log.date), ...relevantDays.map((day) => day.date)]).size;
+  const avgDay = workingDays ? Math.round(totalRevenue / workingDays) : 0;
+  const ringStyle = { background: `conic-gradient(#253445 0 78%, ${netProfit >= 0 ? "#31412d" : "#492b32"} 78% 100%)` };
 
   return (
     <Layout>
       <header className="fm-page-header">
-        <div><h1>Analytics</h1><p>Revenue, expenses and profit by vehicle</p></div>
+        <div><h1>Analytics</h1></div>
+        <button type="button" className="fm-primary-button !rounded-full !px-4 !py-2 text-sm"><Share2 size={16} /> Share Report</button>
       </header>
       <div className="fm-filter-row">
-        <button type="button" onClick={() => setFilter("All")} className={`fm-filter-pill ${filter === "All" ? "is-selected" : ""}`}>All Fleet</button>
-        {state.vehicles.map((vehicle) => <button type="button" key={vehicle.id} onClick={() => setFilter(vehicle.id)} className={`fm-filter-pill ${filter === vehicle.id ? "is-selected" : ""}`}>{vehicle.name}</button>)}
+        {(["Today", "This Week", "This Month"] as const).map((item) => <button type="button" key={item} onClick={() => setRange(item)} className={`fm-filter-pill ${range === item ? "is-selected" : ""}`}>{item}</button>)}
+      </div>
+      <div className="px-4 py-3 bg-background">
+        <button type="button" onClick={() => setFilter("All")} className={`fm-filter-pill !border !border-primary !bg-transparent !text-primary ${filter === "All" ? "is-selected !bg-primary !text-primary-foreground" : ""}`}><Layers3 size={15} /> All Vehicles</button>
+        <div className="mt-2 flex gap-2 overflow-x-auto">
+          {state.vehicles.map((vehicle) => <button type="button" key={vehicle.id} onClick={() => setFilter(vehicle.id)} className={`fm-filter-pill ${filter === vehicle.id ? "is-selected" : ""}`}>{vehicle.name}</button>)}
+        </div>
       </div>
       <main className="fm-page-content space-y-5">
-        <section className="fm-card flex flex-col items-center p-5 text-center">
-          <div className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">Net Profit · This Month</div>
-          <div className="fm-ring" style={ringStyle}><div className="fm-ring-content"><strong className={netProfit >= 0 ? "text-emerald-400" : "text-rose-300"}>₹{netProfit.toLocaleString("en-IN")}</strong><span>Net profit</span></div></div>
+        <section className="fm-card flex items-center gap-4 p-5">
+          <div className="fm-ring shrink-0" style={ringStyle}><div className="fm-ring-content"><span>No data</span></div></div>
+          <div className="flex-1 space-y-4">
+            <div><span className="flex items-center gap-2 text-xs text-muted-foreground"><i className="h-3 w-3 rounded-full bg-emerald-400" />Revenue</span><strong className="ml-5 block text-lg text-emerald-400">₹{totalRevenue.toLocaleString("en-IN")}</strong></div>
+            <div><span className="flex items-center gap-2 text-xs text-muted-foreground"><i className="h-3 w-3 rounded-full bg-rose-400" />Expenses</span><strong className="ml-5 block text-lg text-rose-400">₹{(totalFuel + driverCost).toLocaleString("en-IN")}</strong></div>
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3"><span className="text-xs text-muted-foreground">Net Profit</span><strong className="block text-lg text-emerald-400">₹{netProfit.toLocaleString("en-IN")}</strong></div>
+          </div>
         </section>
         <section className="grid grid-cols-2 gap-3">
-          <div className="fm-card p-4"><TrendingUp className="mb-3 text-emerald-400" size={18} /><span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Revenue</span><strong className="mt-1 block text-xl font-black text-emerald-400">₹{totalRevenue.toLocaleString("en-IN")}</strong></div>
-          <div className="fm-card p-4"><Fuel className="mb-3 text-rose-300" size={18} /><span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Fuel</span><strong className="mt-1 block text-xl font-black text-rose-300">₹{totalFuel.toLocaleString("en-IN")}</strong></div>
-          <div className="fm-card p-4"><Users className="mb-3 text-amber-300" size={18} /><span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Drivers</span><strong className="mt-1 block text-xl font-black text-amber-300">₹{driverCost.toLocaleString("en-IN")}</strong></div>
-          <div className="fm-card p-4"><BarChart3 className="mb-3 text-primary" size={18} /><span className="text-xs font-black uppercase tracking-wider text-muted-foreground">Work Hours</span><strong className="mt-1 block text-xl font-black">{totalHours}</strong></div>
+          <div className="fm-card p-4"><BarChart3 className="mb-3 text-primary" size={18} /><span className="text-xs font-black tracking-wider text-muted-foreground">Working Days</span><strong className="mt-1 block text-xl font-black text-primary">{workingDays}</strong></div>
+          <div className="fm-card p-4"><Fuel className="mb-3 text-blue-400" size={18} /><span className="text-xs font-black tracking-wider text-muted-foreground">Fuel</span><strong className="mt-1 block text-xl font-black text-blue-400">{fuelLiters}L</strong><small className="text-muted-foreground">₹{totalFuel.toLocaleString("en-IN")}</small></div>
+          <div className="fm-card p-4"><Users className="mb-3 text-violet-400" size={18} /><span className="text-xs font-black tracking-wider text-muted-foreground">Driver Cost</span><strong className="mt-1 block text-xl font-black text-violet-400">₹{driverCost.toLocaleString("en-IN")}</strong></div>
+          <div className="fm-card p-4"><TrendingUp className="mb-3 text-emerald-400" size={18} /><span className="text-xs font-black tracking-wider text-muted-foreground">Avg/Day</span><strong className="mt-1 block text-xl font-black text-emerald-400">₹{avgDay.toLocaleString("en-IN")}</strong></div>
         </section>
-        <section className="fm-card p-4">
+        <section className="fm-card p-4 min-h-44">
+          {workingDays === 0 ? <div className="flex h-36 flex-col items-center justify-center text-center"><LineChart className="mb-3 text-muted-foreground" size={44} /><h2 className="text-lg font-black">No Data</h2><p className="mt-2 text-sm text-muted-foreground">Add work logs to see analytics</p></div> : <>
           <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-wider">Vehicle performance</h2><span className="text-xs text-muted-foreground">{month}</span></div>
           <div className="fm-stack">
             {state.vehicles.length === 0 ? <p className="fm-muted">Add a vehicle to see separate profit, fuel, and driver data.</p> : state.vehicles.map((vehicle) => {
@@ -48,6 +71,7 @@ export default function Analytics() {
               return <div className="fm-list-row" key={vehicle.id}><div><strong>{vehicle.name}</strong><small>Revenue ₹{vehicleRevenue.toLocaleString("en-IN")} • Fuel ₹{vehicleFuel.toLocaleString("en-IN")}</small></div><div className="fm-list-value text-primary">₹{(vehicleRevenue - vehicleFuel - vehicleDrivers).toLocaleString("en-IN")}</div></div>;
             })}
           </div>
+          </>}
         </section>
       </main>
     </Layout>

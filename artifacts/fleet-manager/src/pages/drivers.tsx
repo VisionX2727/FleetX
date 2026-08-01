@@ -1,8 +1,9 @@
 import { Layout } from "@/components/layout";
 import { useStore, Driver } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX } from "lucide-react";
+import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Link } from "wouter";
 
 export default function Drivers() {
   const { state, dispatch } = useStore();
@@ -11,6 +12,7 @@ export default function Drivers() {
   const [historyDriverId, setHistoryDriverId] = useState<string | null>(null);
   const [detailDriverId, setDetailDriverId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
+  const [activeType, setActiveType] = useState<Driver["type"]>("Regular");
   
   const [formData, setFormData] = useState<Partial<Driver>>({
     name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: ""
@@ -34,14 +36,14 @@ export default function Drivers() {
   return (
     <Layout>
       <div className="fm-page-header">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1>Drivers</h1>
-            <p>Regular and temporary operators</p>
-          </div>
+        <div className="flex items-center gap-2">
+          <Link href="/" className="text-muted-foreground"><ArrowLeft size={22} /></Link>
+          <div><h1>Drivers</h1></div>
+        </div>
+        <div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <button className="fm-icon-button fm-primary-icon">
+              <button onClick={() => setFormData({ ...formData, type: activeType })} className="fm-icon-button fm-primary-icon">
                 <Plus size={24} strokeWidth={3} />
               </button>
             </DialogTrigger>
@@ -96,16 +98,21 @@ export default function Drivers() {
           </Dialog>
         </div>
       </div>
+      <div className="fm-tab-row">
+        <button className={`fm-tab ${activeType === "Regular" ? "is-active" : ""}`} onClick={() => setActiveType("Regular")}>Regular ({state.drivers.filter((driver) => driver.type === "Regular").length})</button>
+        <button className={`fm-tab ${activeType === "Temporary" ? "is-active" : ""}`} onClick={() => setActiveType("Temporary")}>Temporary ({state.drivers.filter((driver) => driver.type === "Temporary").length})</button>
+      </div>
 
-      <div className="px-6 py-6 space-y-4 pb-24">
-        {state.drivers.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
-            <Users size={48} className="mx-auto text-muted-foreground opacity-30 mb-4" />
-            <h3 className="text-lg font-bold">No drivers added</h3>
-            <p className="text-sm text-muted-foreground mt-1">Add drivers to assign them to work logs.</p>
+      <div className="px-5 py-6 space-y-4">
+        {state.drivers.filter((driver) => driver.type === activeType).length === 0 ? (
+          <div className="fm-driver-empty">
+            <UserRoundPlus size={52} />
+            <h3>No {activeType} Drivers</h3>
+            <p>Add drivers to track daily work and payment history</p>
+            <button type="button" onClick={() => { setFormData({ ...formData, type: activeType }); setIsAddOpen(true); }} className="fm-primary-button"><UserRoundPlus size={18} /> Add {activeType} Driver</button>
           </div>
         ) : (
-          state.drivers.map(driver => (
+          state.drivers.filter((driver) => driver.type === activeType).map(driver => (
             <div key={driver.id} className="bg-card rounded-2xl border border-border p-5 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div>

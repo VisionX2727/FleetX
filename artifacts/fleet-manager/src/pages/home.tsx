@@ -1,7 +1,7 @@
 import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
-import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench } from "lucide-react";
+import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings } from "lucide-react";
 
 export default function Home() {
   const { state } = useStore();
@@ -15,7 +15,23 @@ export default function Home() {
 
   return (
     <Layout>
-      <main className="fm-page-content space-y-6">
+      <header className="fm-home-header">
+        <div className="fm-home-brand">
+          {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" /> : <div className="fm-home-logo">{(state.settings.businessName || "FM").slice(0, 2).toUpperCase()}</div>}
+          <div>
+            <div className="fm-home-greeting">{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</div>
+            <div className="fm-home-title">{state.settings.businessName || "Fleet Manager"}</div>
+          </div>
+        </div>
+        <div className="fm-home-header-actions">
+          <Link href="/calculator"><Calculator size={21} /></Link>
+          <Link href="/settings"><Settings size={22} /></Link>
+        </div>
+      </header>
+      <div className="border-b border-border bg-[#1b2d3c] px-5 py-3 text-sm text-muted-foreground">
+        {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} • {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+      </div>
+      <main className="fm-page-content space-y-5">
         <section className="fm-overview">
           <div className="fm-section-heading"><h2>Today's Business Overview</h2><span className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN")}</span></div>
           <div className="fm-overview-grid">
@@ -46,9 +62,10 @@ export default function Home() {
 
         <section className="pb-4">
           <div className="fm-section-heading"><h2>Recent Logs</h2><Link href="/logs">View all</Link></div>
-          {todayLogs.length === 0 ? <div className="fm-card p-6 text-center text-sm text-muted-foreground">No logs added today.</div> : <div className="fm-stack">{todayLogs.slice().reverse().slice(0, 3).map((log) => <div className="fm-list-row" key={log.id}><div><strong>{state.vehicles.find((vehicle) => vehicle.id === log.vehicleId)?.name || "Vehicle"}</strong><small>{log.description} • {log.hours} hrs</small></div><div className="fm-list-value text-primary">₹{log.amount.toLocaleString("en-IN")}</div></div>)}</div>}
+           {todayLogs.length === 0 ? <div className="fm-card p-6 text-center text-sm text-muted-foreground">No logs added today.</div> : <div className="fm-stack">{todayLogs.slice().reverse().slice(0, 3).map((log) => <div className="fm-list-row" key={log.id}><div><strong>{state.vehicles.find((vehicle) => vehicle.id === log.vehicleId)?.name || "Vehicle"}</strong><small>{log.description} • {log.hours} hrs</small></div><div className="fm-list-value text-primary">₹{log.amount.toLocaleString("en-IN")}</div></div>)}</div>}
         </section>
       </main>
+      <Link href="/logs?action=new" className="fm-fab" aria-label="Add work entry"><Plus size={30} /></Link>
     </Layout>
   );
 }

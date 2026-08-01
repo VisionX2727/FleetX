@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 
 export type Vehicle = {
@@ -27,7 +27,7 @@ export type AppState = {
   settings: Settings;
 };
 
-const defaultSettings: Settings = { businessName: 'My Fleet', ownerName: 'Fleet Owner', phone: '', address: '', email: '', isLoggedIn: true };
+const defaultSettings: Settings = { businessName: 'Fleet Manager', ownerName: '', phone: '', address: '', email: '', isLoggedIn: true };
 
 const defaultState: AppState = {
   vehicles: [],
@@ -73,7 +73,15 @@ function cloneDefaultState(): AppState {
   return JSON.parse(JSON.stringify(defaultState)) as AppState;
 }
 
-export function StoreProvider({ children, userId }: { children: ReactNode; userId: string }) {
+export function StoreProvider({
+  children,
+  userId,
+  cloudSync = true,
+}: {
+  children: ReactNode;
+  userId: string;
+  cloudSync?: boolean;
+}) {
   const [state, setState] = useState<AppState>(() => {
     const scopedKey = getStorageKey(userId);
     const scopedSaved = localStorage.getItem(scopedKey);
@@ -100,37 +108,48 @@ export function StoreProvider({ children, userId }: { children: ReactNode; userI
     return initial;
   });
   const [cloudLoaded, setCloudLoaded] = useState(false);
+  const resetRequested = useRef(false);
 
   useEffect(() => {
     let mounted = true;
     setCloudLoaded(false);
-    if (!supabaseConfigured) {
+    if (!cloudSync || !supabaseConfigured) {
       setCloudLoaded(true);
       return () => { mounted = false; };
     }
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return;
       const remoteState = data.user?.user_metadata?.fleet_manager_data;
-      if (remoteState && typeof remoteState === "object") {
-          setState(normalizeState(remoteState as Partial<AppState>));
+      if (!resetRequested.current && remoteState && typeof remoteState === "object") {
+        setState(normalizeState(remoteState as Partial<AppState>));
       }
       setCloudLoaded(true);
     });
     return () => { mounted = false; };
-  }, [userId]);
+  }, [userId, cloudSync]);
 
   useEffect(() => {
     localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
-    if (!cloudLoaded || !supabaseConfigured) return;
+    if (!cloudLoaded || !cloudSync || !supabaseConfigured) return;
     const timer = window.setTimeout(() => {
       supabase.auth.updateUser({ data: { fleet_manager_data: state } }).catch((error) => {
         console.error("Fleet cloud sync failed", error);
       });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [state, userId, cloudLoaded]);
+  }, [state, userId, cloudLoaded, cloudSync]);
 
   const dispatch = (action: { type: string; payload?: any }) => {
+    if (action.type === "RESET_DATA") {
+      resetRequested.current = true;
+      localStorage.removeItem(getStorageKey(userId));
+      localStorage.removeItem("fleet-manager-state");
+      if (cloudSync && supabaseConfigured) {
+        supabase.auth.updateUser({ data: { fleet_manager_data: cloneDefaultState() } }).catch((error) => {
+          console.error("Fleet reset sync failed", error);
+        });
+      }
+    }
     setState((prev) => {
       switch (action.type) {
         // Vehicle Actions

@@ -51,10 +51,12 @@ function App() {
 
 function AuthenticatedShell() {
   const { user, loading } = useAuth();
+
   if (loading) {
     return <div className="min-h-[100dvh] bg-primary flex items-center justify-center"><div className="font-black text-2xl">Fleet Manager</div></div>;
   }
   if (!user) return <Login />;
+
   return (
     <StoreProvider key={user.id} userId={user.id}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
