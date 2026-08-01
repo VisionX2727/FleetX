@@ -28,7 +28,15 @@ export default function Analytics() {
   const netProfit = totalRevenue - totalFuel - driverCost;
   const workingDays = new Set([...relevantLogs.map((log) => log.date), ...relevantDays.map((day) => day.date)]).size;
   const avgDay = workingDays ? Math.round(totalRevenue / workingDays) : 0;
-  const ringStyle = { background: `conic-gradient(#253445 0 78%, ${netProfit >= 0 ? "#31412d" : "#492b32"} 78% 100%)` };
+  const totalExpenses = totalFuel + driverCost;
+  const hasAnalyticsData = totalRevenue > 0 || totalExpenses > 0 || workingDays > 0;
+  const ringTotal = totalRevenue + totalExpenses;
+  const revenuePercent = ringTotal > 0 ? Math.min(100, Math.max(0, (totalRevenue / ringTotal) * 100)) : 0;
+  const ringStyle = {
+    background: hasAnalyticsData
+      ? `conic-gradient(#34d399 0 ${revenuePercent}%, #fb7185 ${revenuePercent}% 100%)`
+      : "conic-gradient(#253445 0 100%)",
+  };
 
   return (
     <Layout>
@@ -40,18 +48,18 @@ export default function Analytics() {
         {(["Today", "This Week", "This Month"] as const).map((item) => <button type="button" key={item} onClick={() => setRange(item)} className={`fm-filter-pill ${range === item ? "is-selected" : ""}`}>{item}</button>)}
       </div>
       <div className="px-4 py-3 bg-background">
-        <button type="button" onClick={() => setFilter("All")} className={`fm-filter-pill !border !border-primary !bg-transparent !text-primary ${filter === "All" ? "is-selected !bg-primary !text-primary-foreground" : ""}`}><Layers3 size={15} /> All Vehicles</button>
+         <button type="button" onClick={() => setFilter("All")} className={`fm-filter-pill !border !border-primary !bg-transparent !text-white ${filter === "All" ? "is-selected !bg-primary !text-white" : ""}`}><Layers3 size={15} /> All Vehicles</button>
         <div className="mt-2 flex gap-2 overflow-x-auto">
           {state.vehicles.map((vehicle) => <button type="button" key={vehicle.id} onClick={() => setFilter(vehicle.id)} className={`fm-filter-pill ${filter === vehicle.id ? "is-selected" : ""}`}>{vehicle.name}</button>)}
         </div>
       </div>
       <main className="fm-page-content space-y-5">
         <section className="fm-card flex items-center gap-4 p-5">
-          <div className="fm-ring shrink-0" style={ringStyle}><div className="fm-ring-content"><span>No data</span></div></div>
+           <div className="fm-ring shrink-0" style={ringStyle}><div className="fm-ring-content">{hasAnalyticsData ? <><strong className={netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}>₹{netProfit.toLocaleString("en-IN")}</strong><span>Net Profit</span></> : <span>No data</span>}</div></div>
           <div className="flex-1 space-y-4">
             <div><span className="flex items-center gap-2 text-xs text-muted-foreground"><i className="h-3 w-3 rounded-full bg-emerald-400" />Revenue</span><strong className="ml-5 block text-lg text-emerald-400">₹{totalRevenue.toLocaleString("en-IN")}</strong></div>
             <div><span className="flex items-center gap-2 text-xs text-muted-foreground"><i className="h-3 w-3 rounded-full bg-rose-400" />Expenses</span><strong className="ml-5 block text-lg text-rose-400">₹{(totalFuel + driverCost).toLocaleString("en-IN")}</strong></div>
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3"><span className="text-xs text-muted-foreground">Net Profit</span><strong className="block text-lg text-emerald-400">₹{netProfit.toLocaleString("en-IN")}</strong></div>
+             <div className={`rounded-xl border p-3 ${netProfit >= 0 ? "border-emerald-400/20 bg-emerald-400/10" : "border-rose-400/20 bg-rose-400/10"}`}><span className="text-xs text-muted-foreground">Net Profit</span><strong className={`block text-lg ${netProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>₹{netProfit.toLocaleString("en-IN")}</strong></div>
           </div>
         </section>
         <section className="grid grid-cols-2 gap-3">
