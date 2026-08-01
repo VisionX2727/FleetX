@@ -12,32 +12,22 @@ function waitForImages(root: HTMLElement) {
   }));
 }
 
-/**
- * Render the same styled invoice used by View Receipt into a real PDF.
- * Keeping one HTML source prevents Share PDF/Download PDF from drifting
- * into a plain text-only document.
- */
-export async function createInvoicePdf(data: InvoiceData): Promise<Blob> {
+export async function createHtmlPdf(html: string, width = 820): Promise<Blob> {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;height:1200px;border:0;opacity:0;pointer-events:none;";
-  frame.srcdoc = createInvoiceHtml(data);
+  frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${width}px;height:1400px;border:0;opacity:0;pointer-events:none;`;
+  frame.srcdoc = html;
   document.body.appendChild(frame);
   try {
     await new Promise<void>((resolve) => {
       frame.addEventListener("load", () => resolve(), { once: true });
-      window.setTimeout(resolve, 400);
+      window.setTimeout(resolve, 500);
     });
-    const documentBody = frame.contentDocument?.body;
+    const body = frame.contentDocument?.body;
     const sheet = frame.contentDocument?.querySelector(".sheet") as HTMLElement | null;
-    if (!documentBody || !sheet) throw new Error("Receipt preview could not be rendered");
-    await waitForImages(documentBody);
-    const canvas = await html2canvas(sheet, {
-      backgroundColor: "#ffffff",
-      scale: Math.min(2, window.devicePixelRatio || 1.5),
-      useCORS: true,
-      logging: false,
-    });
+    if (!body || !sheet) throw new Error("PDF content could not be rendered");
+    await waitForImages(body);
+    const canvas = await html2canvas(sheet, { backgroundColor: "#ffffff", scale: Math.min(2, window.devicePixelRatio || 1.5), useCORS: true, logging: false });
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
@@ -58,4 +48,8 @@ export async function createInvoicePdf(data: InvoiceData): Promise<Blob> {
   } finally {
     frame.remove();
   }
+}
+
+export function createInvoicePdf(data: InvoiceData): Promise<Blob> {
+  return createHtmlPdf(createInvoiceHtml(data));
 }

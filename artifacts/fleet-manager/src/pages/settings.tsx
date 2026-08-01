@@ -6,8 +6,17 @@ import { LogOut, CheckCircle2, UserCircle, ImagePlus, Download, Trash2, ArrowLef
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { createHtmlPdf } from "@/lib/pdf";
 
-const fallbackLogo = `${import.meta.env.BASE_URL}rajmudra-logo.png`;
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  }[character] || character));
+}
+
+function formatRows<T>(items: T[], render: (item: T) => string, empty = "No records") {
+  return items.length ? items.map(render).join("") : `<div class="empty">${empty}</div>`;
+}
 
 export default function Settings() {
   const { state, dispatch } = useStore();
@@ -51,6 +60,7 @@ export default function Settings() {
       type: 'UPDATE_SETTINGS', 
       payload: { businessName, companyName, ownerName, phone, address, email, upiId, bankName, gstNumber, gstPercentage: Math.max(0, Number(gstPercentage) || 0) }
     });
+    navigator.vibrate?.(45);
     toast({
       title: "Settings Saved",
       description: "Business details have been updated."
@@ -65,14 +75,26 @@ export default function Settings() {
     reader.readAsDataURL(file);
   };
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const exportData = async () => {
+    const reportHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
+      *{box-sizing:border-box}body{margin:0;background:#eef1f4;color:#151515;font:12px Arial,sans-serif}.sheet{width:794px;min-height:1123px;background:#fff;margin:0 auto;padding:30px}.header{border-bottom:3px solid #171717;padding-bottom:16px}.title{font-size:26px;font-weight:800}.subtitle{margin-top:5px;color:#555}.section{margin-top:18px}.section h2{font-size:15px;margin:0 0 7px;text-transform:uppercase}.grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #c6cbd0;border-radius:4px}.cell{padding:8px;border-bottom:1px solid #e1e4e7;overflow-wrap:anywhere}.cell:nth-child(odd){font-weight:700;background:#f7f8f9}.row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border:1px solid #c6cbd0;border-bottom:0}.row:last-child{border-bottom:1px solid #c6cbd0}.row div{padding:7px;border-right:1px solid #e1e4e7;overflow-wrap:anywhere}.row div:last-child{border-right:0}.head{background:#252525;color:#fff;font-weight:700}.empty{border:1px dashed #b9bec4;padding:14px;color:#666}.footer{margin-top:22px;border-top:1px solid #aaa;padding-top:9px;text-align:center;color:#777;font-size:10px}
+    </style></head><body><main class="sheet">
+      <header class="header"><div class="title">${escapeHtml(companyName || businessName || "Fleet Manager")} — Workspace Report</div><div class="subtitle">Exported ${escapeHtml(new Date().toLocaleString("en-IN"))}</div></header>
+      <section class="section"><h2>Business Information</h2><div class="grid"><div class="cell">Owner / Company</div><div class="cell">${escapeHtml(ownerName || companyName || businessName)}</div><div class="cell">Phone</div><div class="cell">${escapeHtml(phone || "—")}</div><div class="cell">Email</div><div class="cell">${escapeHtml(email || "—")}</div><div class="cell">Address</div><div class="cell">${escapeHtml(address || "—")}</div><div class="cell">GST</div><div class="cell">${escapeHtml(gstNumber || "—")} (${gstPercentage || 0}%)</div></div></section>
+      <section class="section"><h2>Vehicles</h2><div class="row head"><div>Name</div><div>Type</div><div>Registration</div><div>Status</div></div>${formatRows(state.vehicles, (vehicle) => `<div class="row"><div>${escapeHtml(vehicle.name)}</div><div>${escapeHtml(vehicle.type)}</div><div>${escapeHtml(vehicle.regNumber)}</div><div>${escapeHtml(vehicle.status)}</div></div>`)}</section>
+      <section class="section"><h2>Customers &amp; Khata</h2><div class="row head"><div>Customer</div><div>Phone</div><div>Work Logs</div><div>Status</div></div>${formatRows(state.customers, (customer) => `<div class="row"><div>${escapeHtml(customer.name)}</div><div>${escapeHtml(customer.phone)}</div><div>${state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Charge").length}</div><div>${customer.completed ? "Work Complete" : "Active"}</div></div>`)}</section>
+      <section class="section"><h2>Work Logs</h2><div class="row head"><div>Date</div><div>Vehicle</div><div>Description</div><div>Amount</div></div>${formatRows(state.logs, (log) => `<div class="row"><div>${escapeHtml(log.date)}</div><div>${escapeHtml(state.vehicles.find((vehicle) => vehicle.id === log.vehicleId)?.name || "Vehicle")}</div><div>${escapeHtml(log.description || "Work entry")}</div><div>₹${log.amount.toLocaleString("en-IN")}</div></div>`)}</section>
+      <section class="section"><h2>Drivers</h2><div class="row head"><div>Name</div><div>Type</div><div>Phone</div><div>Rate</div></div>${formatRows(state.drivers, (driver) => `<div class="row"><div>${escapeHtml(driver.name)}</div><div>${escapeHtml(driver.type)}</div><div>${escapeHtml(driver.phone)}</div><div>₹${driver.dailyRate.toLocaleString("en-IN")}</div></div>`)}</section>
+      <section class="section"><h2>Fuel Records</h2><div class="row head"><div>Date</div><div>Vehicle</div><div>Quantity</div><div>Cost</div></div>${formatRows(state.fuelRecords, (fuel) => `<div class="row"><div>${escapeHtml(fuel.date)}</div><div>${escapeHtml(state.vehicles.find((vehicle) => vehicle.id === fuel.vehicleId)?.name || "Vehicle")}</div><div>${fuel.quantity} L</div><div>₹${fuel.cost.toLocaleString("en-IN")}</div></div>`)}</section>
+      <footer class="footer">Fleet Manager workspace export • ${escapeHtml(companyName || businessName || "Fleet Manager")}</footer>
+    </main></body></html>`;
+    const blob = await createHtmlPdf(reportHtml);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${businessName.replace(/\s+/g, "-").toLowerCase()}-fleet-backup.json`;
+    anchor.download = `${(businessName || "fleet-manager").replace(/\s+/g, "-").toLowerCase()}-workspace-report.pdf`;
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const resetData = () => {
@@ -97,7 +119,7 @@ export default function Settings() {
           <div className="fm-settings-section-title">Business Logo</div>
           <p className="fm-settings-help">Used on receipts, invoices and app header</p>
           <div className="flex justify-center py-2">
-            <img src={state.settings.logoUrl || fallbackLogo} alt="Business logo" className="h-20 w-20 rounded-full border-2 border-primary object-cover" />
+             {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" className="h-20 w-20 rounded-full border-2 border-primary object-cover" /> : <div className="fm-settings-logo-placeholder"><UserCircle size={42} /></div>}
           </div>
           <label className="mx-auto flex w-fit items-center justify-center gap-2 rounded-full border border-dashed border-border px-4 py-2 text-xs font-bold cursor-pointer">
             <ImagePlus size={15} /> Change Logo
@@ -156,7 +178,7 @@ export default function Settings() {
           <div className="fm-settings-section-title">Workspace Data</div>
           <p className="fm-settings-help mt-1">Export a backup or permanently remove all vehicles, logs, customers, fuel, drivers, payments and settings for this Google account.</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button type="button" onClick={exportData} className="flex items-center justify-center gap-2 rounded-xl border border-border p-3 text-sm font-bold text-primary">
+            <button type="button" onClick={() => void exportData()} className="flex items-center justify-center gap-2 rounded-xl border border-border p-3 text-sm font-bold text-primary">
               <Download size={16} /> Export
             </button>
             <button type="button" onClick={resetData} className="flex items-center justify-center gap-2 rounded-xl border border-rose-400/40 p-3 text-sm font-bold text-rose-300">

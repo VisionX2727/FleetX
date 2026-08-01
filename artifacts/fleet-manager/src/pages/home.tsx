@@ -1,9 +1,7 @@
 import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
-import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings } from "lucide-react";
-
-const fallbackLogo = `${import.meta.env.BASE_URL}rajmudra-logo.png`;
+import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings, UserCircle } from "lucide-react";
 
 export default function Home() {
   const { state } = useStore();
@@ -19,7 +17,7 @@ export default function Home() {
     <Layout>
       <header className="fm-home-header">
         <div className="fm-home-brand">
-          <img src={state.settings.logoUrl || fallbackLogo} alt="Business logo" />
+           {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" /> : <div className="fm-home-logo"><UserCircle size={30} /></div>}
           <div>
             <div className="fm-home-greeting">{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</div>
             <div className="fm-home-title">{state.settings.businessName || "Fleet Manager"}</div>

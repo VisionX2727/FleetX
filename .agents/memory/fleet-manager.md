@@ -44,3 +44,9 @@ Receipt exports now render the same branded invoice HTML used by View Receipt be
 **Why:** A text-stream PDF produced a white/raw-text receipt instead of matching the supplied invoice reference.
 
 **How to apply:** Keep Share PDF, Download PDF, and View Receipt driven from the same invoice data and visual template, including company branding, date ranges, payment details, and status.
+
+The receipt and workspace export templates use a fixed standard-page canvas with bounded grid columns and explicit wrapping before rasterization.
+
+**Why:** Long company, address, payment, and customer values can otherwise overlap or push sections into an unreadable PDF.
+
+**How to apply:** Preserve the fixed-page/wrapping approach when adding invoice fields or new export sections; keep payments descriptive and never subtract them from Grand Total.

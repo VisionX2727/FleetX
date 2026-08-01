@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Plus, Users, Phone, Download, Share2, ReceiptText, Search, Trash2,
   ArrowLeft, QrCode, CirclePlus, CheckCircle2, Clock3,
@@ -21,12 +21,9 @@ export default function Khata() {
   const [qrOpen, setQrOpen] = useState(false);
   const [invoicePreview, setInvoicePreview] = useState("");
   const [receiptActionsOpen, setReceiptActionsOpen] = useState(false);
-  const [completeCustomerId, setCompleteCustomerId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [khataTab, setKhataTab] = useState<"work" | "payments">("work");
   const [customerSection, setCustomerSection] = useState<"active" | "completed">("active");
-  const customerPressTimer = useRef<number | null>(null);
-  const customerLongPressed = useRef(false);
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({
     date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash",
@@ -208,21 +205,6 @@ export default function Khata() {
     printWindow.document.close();
   };
 
-  const startCustomerPress = (customerId: string) => {
-    customerLongPressed.current = false;
-    if (customerPressTimer.current) window.clearTimeout(customerPressTimer.current);
-    customerPressTimer.current = window.setTimeout(() => {
-      customerLongPressed.current = true;
-      setCompleteCustomerId(customerId);
-      customerPressTimer.current = null;
-    }, 550);
-  };
-
-  const endCustomerPress = () => {
-    if (customerPressTimer.current) window.clearTimeout(customerPressTimer.current);
-    customerPressTimer.current = null;
-  };
-
   const downloadQr = async (customer: Customer) => {
     if (!qrDataUrl) return;
     const response = await fetch(qrDataUrl);
@@ -377,13 +359,13 @@ export default function Khata() {
          {visibleCustomers.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>{customerSection === "completed" ? "No completed customers yet" : "No customers yet"}</p></div> :
           visibleCustomers.map((customer) => {
             const total = getCustomerSubtotal(customer.id) + getCustomerGst(customer);
-             return <div key={customer.id} onPointerDown={() => startCustomerPress(customer.id)} onPointerUp={endCustomerPress} onPointerCancel={endCustomerPress} onPointerLeave={endCustomerPress} onClick={() => { if (customerLongPressed.current) { customerLongPressed.current = false; return; } setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full cursor-pointer rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
+             return <div key={customer.id} onClick={() => { setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full cursor-pointer rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
               <div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#454545] text-3xl font-black text-primary">{customer.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="text-xl font-black">{customer.name}</h3><div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground"><Phone size={14} />{customer.phone}</div>{customer.address && <div className="text-sm text-muted-foreground">{customer.address}</div>}<div className="mt-1 text-sm text-muted-foreground">{getCustomerCharges(customer.id).length} work logs</div></div><div className="text-right"><div className="text-xl font-black text-primary">₹{total.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div><div className="mt-2 text-muted-foreground">›</div></div></div>
                <div className="mt-3 grid grid-cols-2 gap-2">
                  <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer.id); setKhataTab("work"); }} className="rounded-xl bg-primary/15 p-2 text-sm font-bold text-primary">{customerSection === "completed" ? "Open history" : "Open Khata"}</button>
                  {customerSection === "completed"
                    ? <button type="button" onClick={(event) => { event.stopPropagation(); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl bg-emerald-500 p-2 text-sm font-bold text-white">Active Customer</button>
-                   : <span className="rounded-xl border border-border p-2 text-center text-xs font-semibold text-muted-foreground">Long press to complete</span>}
+                    : <button type="button" onClick={(event) => { event.stopPropagation(); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl border border-amber-400/50 p-2 text-sm font-bold text-amber-300">Inactive Customer</button>}
                </div>
              </div>;
           })}
@@ -397,16 +379,6 @@ export default function Khata() {
             <textarea value={customerData.address || ""} onChange={(event) => setCustomerData({ ...customerData, address: event.target.value })} placeholder="Address / site location (optional)" className="min-h-20 w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
             <button type="submit" className="w-full rounded-xl bg-foreground p-4 font-bold text-background">Save Customer</button>
           </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={Boolean(completeCustomerId)} onOpenChange={(open) => !open && setCompleteCustomerId(null)}>
-        <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
-          <DialogHeader><DialogTitle className="text-xl font-black">Mark customer complete?</DialogTitle></DialogHeader>
-          <p className="py-2 text-sm text-muted-foreground">This customer will move to Work Complete and can be activated again later.</p>
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button type="button" onClick={() => setCompleteCustomerId(null)} className="rounded-xl border border-border p-3 font-bold">Cancel</button>
-            <button type="button" onClick={() => { if (completeCustomerId) dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: completeCustomerId }); setCompleteCustomerId(null); }} className="rounded-xl bg-primary p-3 font-bold text-primary-foreground">Mark complete</button>
-          </div>
         </DialogContent>
       </Dialog>
     </Layout>
