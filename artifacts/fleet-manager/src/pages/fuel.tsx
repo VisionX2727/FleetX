@@ -30,17 +30,17 @@ export default function Fuel() {
 
   return (
     <Layout>
-      <div className="pt-12 px-6 pb-6 bg-card border-b border-border sticky top-0 z-10 shadow-sm">
+      <div className="fm-page-header">
         <div className="flex justify-between items-end mb-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">Fuel</h1>
-            <p className="text-sm text-muted-foreground font-medium mt-1">Diesel & maintenance</p>
+            <h1>Fuel</h1>
+            <p>Diesel records by vehicle and date</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if(!open && action === 'new') setLocation('/fuel'); }}>
             <DialogTrigger asChild>
               <button 
                 onClick={() => setFormData({ ...formData, date: new Date().toISOString().split('T')[0] })}
-                className="bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                className="fm-icon-button fm-primary-icon"
               >
                 <Plus size={24} strokeWidth={3} />
               </button>
@@ -63,8 +63,8 @@ export default function Fuel() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Filled By (Driver)</label>
-                  <select required value={formData.driverId} onChange={e => setFormData({...formData, driverId: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
-                    <option value="" disabled>Select Driver</option>
+                  <select value={formData.driverId || ""} onChange={e => setFormData({...formData, driverId: e.target.value || undefined})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">No driver / owner</option>
                     {state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>

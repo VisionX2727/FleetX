@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useStore, WorkLog } from "@/lib/store";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus, CheckCircle2, ClipboardX, BookOpen } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -11,6 +11,8 @@ export default function Logs() {
   const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
   const [khataCustomerId, setKhataCustomerId] = useState("");
   const [isKhataOpen, setIsKhataOpen] = useState(false);
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
   
   const [formData, setFormData] = useState<Partial<WorkLog>>({
     date: filterDate, vehicleId: "", driverId: "", customerId: "", description: "", hours: 0, amount: 0, status: "Pending"
@@ -27,6 +29,20 @@ export default function Logs() {
 
   const toggleSelect = (id: string) => {
     setSelectedLogs(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const startPress = (id: string) => {
+    longPressed.current = false;
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      toggleSelect(id);
+    }, 450);
+  };
+
+  const endPress = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
   };
 
   const markSelectedPaid = () => {
@@ -71,17 +87,17 @@ export default function Logs() {
 
   return (
     <Layout>
-      <div className="pt-12 px-6 pb-6 bg-card border-b border-border sticky top-0 z-10 shadow-sm">
+      <div className="fm-page-header">
         <div className="flex justify-between items-end mb-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">Work Logs</h1>
-            <p className="text-sm text-muted-foreground font-medium mt-1">Daily operations tracking</p>
+            <h1>Logs</h1>
+            <p>Long press a log to select multiple</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <button 
                 onClick={() => setFormData({ ...formData, date: filterDate, vehicleId: state.vehicles[0]?.id || "", driverId: state.drivers[0]?.id || "" })}
-                className="bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                className="fm-icon-button fm-primary-icon"
               >
                 <Plus size={24} strokeWidth={3} />
               </button>
@@ -97,7 +113,11 @@ export default function Logs() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Vehicle</label>
-                  <select required value={formData.vehicleId} onChange={e => setFormData({...formData, vehicleId: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
+                  <select required value={formData.vehicleId} onChange={e => {
+                    const vehicleId = e.target.value;
+                    const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicleId);
+                    setFormData({...formData, vehicleId, driverId: assignedDriver?.id || formData.driverId || ""});
+                  }} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
                     <option value="" disabled>Select Vehicle</option>
                     {state.vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.regNumber})</option>)}
                   </select>
@@ -175,9 +195,19 @@ export default function Logs() {
               const isSelected = selectedLogs.includes(log.id);
 
               return (
-                <div 
+                  <div
                   key={log.id} 
-                  onClick={() => toggleSelect(log.id)}
+                   onPointerDown={() => startPress(log.id)}
+                   onPointerUp={endPress}
+                   onPointerCancel={endPress}
+                   onPointerLeave={endPress}
+                   onClick={() => {
+                     if (longPressed.current) {
+                       longPressed.current = false;
+                       return;
+                     }
+                     toggleSelect(log.id);
+                   }}
                   className={`bg-card rounded-2xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'}`}
                 >
                   <div className="flex justify-between items-start mb-2">

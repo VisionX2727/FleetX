@@ -14,3 +14,9 @@ The app now gates all routes behind Google OAuth, scopes fleet data to the authe
 **Why:** The user requested account-specific access and a receipt matching the supplied service invoice image rather than the earlier raw text download.
 
 **How to apply:** Keep the startup login gate and do not put sign-in inside Settings; Settings should expose the signed-in account and Logout only. Keep invoice generation linked to Khata charges and Settings profile data. Google provider activation, consent-screen branding, and exact redirect allow-list entries remain Supabase dashboard configuration.
+
+The reference app direction is a dark mobile operations cockpit: deep navy surfaces, amber primary actions, compact six-item bottom navigation, header Settings/Calculator actions, and empty first-run records rather than seeded demo data.
+
+**Why:** The uploaded screenshots are the visual source of truth and show a field-ready fleet tool with clear first-run empty states.
+
+**How to apply:** Preserve the dark navy/amber shell when adding screens. New records must remain vehicle-linked where relevant, and the user-facing flows should prefer the existing Fleet, Logs, Khata, Fuel, Drivers, Calculator, Analytics, and Settings routes rather than introducing parallel modules.

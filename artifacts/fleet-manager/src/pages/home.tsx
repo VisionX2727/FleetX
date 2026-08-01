@@ -1,144 +1,54 @@
 import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
-import { ArrowUpRight, ArrowDownRight, ClipboardList, AlertCircle, TrendingUp } from "lucide-react";
+import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench } from "lucide-react";
 
 export default function Home() {
   const { state } = useStore();
-
-  const today = new Date().toISOString().split('T')[0];
-  const todayLogs = state.logs.filter(l => l.date === today);
-  const todayRevenue = todayLogs.reduce((sum, l) => sum + l.amount, 0);
-  
-  const todayFuel = state.fuelRecords.filter(f => f.date === today);
-  const todayExpense = todayFuel.reduce((sum, f) => sum + f.cost, 0);
-
-   const activeVehicles = state.vehicles.filter(v => v.status === 'Active').length;
-   const idleVehicles = state.vehicles.filter(v => v.status === 'Idle').length;
-  const maintenanceVehicles = state.vehicles.filter(v => v.status === 'Maintenance').length;
+  const today = new Date().toISOString().split("T")[0];
+  const todayLogs = state.logs.filter((log) => log.date === today);
+  const revenue = todayLogs.reduce((sum, log) => sum + log.amount, 0) + state.fleetDays.filter((day) => day.date === today).reduce((sum, day) => sum + day.amount, 0);
+  const expenses = state.fuelRecords.filter((fuel) => fuel.date === today).reduce((sum, fuel) => sum + fuel.cost, 0);
+  const active = state.vehicles.filter((vehicle) => vehicle.status === "Active").length;
+  const idle = state.vehicles.filter((vehicle) => vehicle.status === "Idle").length;
+  const maintenance = state.vehicles.filter((vehicle) => vehicle.status === "Maintenance").length;
 
   return (
     <Layout>
-      <div className="bg-primary pt-12 pb-6 px-6 text-primary-foreground rounded-b-[2.5rem] shadow-md relative overflow-hidden">
-        {/* Subtle texture/pattern could go here */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-black via-transparent to-transparent pointer-events-none"></div>
-        
-        <div className="flex justify-between items-start relative z-10">
-          <div>
-            <h1 className="text-sm font-semibold opacity-80 uppercase tracking-wider mb-1">Command Center</h1>
-            <h2 className="text-3xl font-bold tracking-tight">{state.settings.businessName}</h2>
+      <main className="fm-page-content space-y-6">
+        <section className="fm-overview">
+          <div className="fm-section-heading"><h2>Today's Business Overview</h2><span className="text-xs text-muted-foreground">{new Date().toLocaleDateString("en-IN")}</span></div>
+          <div className="fm-overview-grid">
+            <div className="fm-overview-stat"><BarChart3 className="text-emerald-400" size={22} /><strong>₹{revenue.toLocaleString("en-IN")}</strong><span>Revenue</span></div>
+            <div className="fm-overview-stat"><ArrowDownRight className="text-rose-400" size={22} /><strong>₹{expenses.toLocaleString("en-IN")}</strong><span>Expenses</span></div>
+            <div className="fm-overview-stat"><BarChart3 className="text-primary" size={22} /><strong>₹{(revenue - expenses).toLocaleString("en-IN")}</strong><span>Net Profit</span></div>
           </div>
-          {state.settings.logoUrl ? (
-            <img src={state.settings.logoUrl} alt="Business logo" className="w-12 h-12 rounded-xl shadow-sm object-cover bg-white p-1" />
-          ) : (
-            <div className="w-12 h-12 rounded-xl shadow-sm bg-black text-primary flex items-center justify-center font-black text-sm">
-              {(state.settings.businessName || "FM").slice(0, 2).toUpperCase()}
-            </div>
-          )}
-        </div>
+        </section>
 
-        <div className="mt-8 grid grid-cols-2 gap-4 relative z-10">
-          <div className="bg-primary-foreground/10 p-4 rounded-2xl backdrop-blur-sm border border-primary-foreground/5">
-            <div className="flex items-center gap-1.5 text-primary-foreground/80 mb-1">
-              <TrendingUp size={14} />
-              <span className="text-xs font-semibold uppercase">Today's Work</span>
-            </div>
-            <div className="text-2xl font-bold flex items-center gap-1">
-              <span className="text-lg">₹</span>
-              {todayRevenue.toLocaleString()}
-            </div>
-          </div>
-          <div className="bg-primary-foreground/10 p-4 rounded-2xl backdrop-blur-sm border border-primary-foreground/5">
-            <div className="flex items-center gap-1.5 text-primary-foreground/80 mb-1">
-              <ArrowDownRight size={14} />
-              <span className="text-xs font-semibold uppercase">Today's Fuel</span>
-            </div>
-            <div className="text-2xl font-bold flex items-center gap-1">
-              <span className="text-lg">₹</span>
-              {todayExpense.toLocaleString()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-6 py-8 space-y-8">
-        
-        {/* Fleet Status */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold">Fleet Status</h3>
-            <Link href="/fleet" className="text-sm font-bold text-primary">View All</Link>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-             <div className="bg-card border border-border p-4 rounded-2xl flex flex-col justify-center shadow-sm">
-              <div className="text-3xl font-black mb-1">{activeVehicles}</div>
-              <div className="text-sm font-semibold text-muted-foreground">Active Units</div>
-            </div>
-            <div className="bg-card border border-border p-4 rounded-2xl flex flex-col justify-center shadow-sm">
-              <div className="text-3xl font-black mb-1 flex items-center gap-2">
-                {maintenanceVehicles}
-                {maintenanceVehicles > 0 && <AlertCircle size={20} className="text-destructive" />}
-              </div>
-              <div className="text-sm font-semibold text-muted-foreground">In Maintenance</div>
-            </div>
-             <div className="bg-card border border-border p-4 rounded-2xl flex flex-col justify-center shadow-sm">
-               <div className="text-3xl font-black mb-1">{idleVehicles}</div>
-               <div className="text-sm font-semibold text-muted-foreground">Idle Units</div>
-             </div>
+          <div className="fm-section-heading"><h2>Live Fleet Status</h2><Link href="/drivers">Drivers</Link></div>
+          <div className="fm-card p-4">
+            {state.vehicles.length === 0 ? <div className="fm-empty-state min-h-32"><Truck size={40} /><p>No vehicles. Tap to add in Fleet.</p><Link href="/fleet" className="fm-primary-button"><Plus size={17} /> Add Vehicle</Link></div> : <div className="grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl font-black text-emerald-400">{active}</strong><span className="text-xs text-muted-foreground">Active</span></div><div><strong className="block text-2xl font-black text-amber-300">{idle}</strong><span className="text-xs text-muted-foreground">Idle</span></div><div><strong className="block text-2xl font-black text-rose-300">{maintenance}</strong><span className="text-xs text-muted-foreground">Maintenance</span></div></div>}
           </div>
         </section>
 
-        {/* Quick Actions */}
         <section>
-          <h3 className="text-lg font-bold mb-4">Quick Log</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <Link href="/logs?action=new" className="bg-card border-2 border-dashed border-border hover:border-primary transition-colors p-4 rounded-2xl flex flex-col items-center justify-center gap-3 text-center shadow-sm">
-              <div className="bg-primary/10 p-3 rounded-full text-primary">
-                <ClipboardList size={24} />
-              </div>
-              <span className="font-semibold text-sm">Add Work Log</span>
-            </Link>
-            <Link href="/fuel?action=new" className="bg-card border-2 border-dashed border-border hover:border-primary transition-colors p-4 rounded-2xl flex flex-col items-center justify-center gap-3 text-center shadow-sm">
-              <div className="bg-destructive/10 p-3 rounded-full text-destructive">
-                <ArrowDownRight size={24} />
-              </div>
-              <span className="font-semibold text-sm">Add Fuel Entry</span>
-            </Link>
+          <div className="fm-section-heading"><h2>Quick Actions</h2></div>
+          <div className="fm-quick-grid">
+            <Link href="/logs?action=new" className="fm-quick-action"><ClipboardList size={27} /> New Entry</Link>
+            <Link href="/fuel?action=new" className="fm-quick-action"><Droplet size={27} /> Add Fuel</Link>
+            <Link href="/fleet" className="fm-quick-action"><Wrench size={27} /> Maintenance</Link>
+            <Link href="/analytics" className="fm-quick-action"><BarChart3 size={27} /> Reports</Link>
+            <Link href="/khata" className="fm-quick-action"><BookOpen size={27} /> Khata Book</Link>
+            <Link href="/drivers" className="fm-quick-action"><Users size={27} /> Drivers</Link>
           </div>
         </section>
 
-        {/* Recent Activity */}
-        <section className="pb-8">
-          <h3 className="text-lg font-bold mb-4">Recent Work</h3>
-          <div className="space-y-3">
-            {todayLogs.length === 0 ? (
-              <div className="text-center py-8 bg-card border border-border rounded-2xl">
-                <ClipboardList size={32} className="mx-auto text-muted-foreground mb-2 opacity-50" />
-                <p className="text-muted-foreground font-medium text-sm">No logs added today.</p>
-              </div>
-            ) : (
-              todayLogs.slice(0,3).map(log => {
-                const vehicle = state.vehicles.find(v => v.id === log.vehicleId);
-                return (
-                  <div key={log.id} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between shadow-sm">
-                    <div>
-                      <div className="font-bold">{vehicle?.name || 'Unknown'}</div>
-                      <div className="text-xs text-muted-foreground font-medium mt-0.5">{log.description} • {log.hours} hrs</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-primary">₹{log.amount.toLocaleString()}</div>
-                      <div className={`text-[10px] font-bold uppercase tracking-wide mt-1 ${log.status === 'Paid' ? 'text-green-600' : 'text-orange-500'}`}>
-                        {log.status}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
+        <section className="pb-4">
+          <div className="fm-section-heading"><h2>Recent Logs</h2><Link href="/logs">View all</Link></div>
+          {todayLogs.length === 0 ? <div className="fm-card p-6 text-center text-sm text-muted-foreground">No logs added today.</div> : <div className="fm-stack">{todayLogs.slice().reverse().slice(0, 3).map((log) => <div className="fm-list-row" key={log.id}><div><strong>{state.vehicles.find((vehicle) => vehicle.id === log.vehicleId)?.name || "Vehicle"}</strong><small>{log.description} • {log.hours} hrs</small></div><div className="fm-list-value text-primary">₹{log.amount.toLocaleString("en-IN")}</div></div>)}</div>}
         </section>
-
-      </div>
+      </main>
     </Layout>
   );
 }

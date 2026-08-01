@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone } from "lucide-react";
+import { Plus, Users, ArrowUpRight, ArrowDownRight, Phone, Download, Share2, ReceiptText, CheckCircle2, Clock3 } from "lucide-react";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createInvoiceHtml, InvoiceData } from "@/lib/invoice";
@@ -52,7 +52,12 @@ export default function Khata() {
     setReceiptCustomerId(customer.id);
   };
 
-  const getInvoiceData = (customer: Customer): InvoiceData => {
+  const buildPaymentPayload = (customer: Customer, amount = getCustomerBalance(customer.id)) => {
+    const upi = state.settings.upiId || "fleet-owner@upi";
+    return `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(state.settings.businessName)}&am=${amount}&cu=INR`;
+  };
+
+  const getInvoiceData = (customer: Customer, qrDataUrl?: string): InvoiceData => {
     const charges = getCustomerCharges(customer.id);
     const payments = state.ledgers.filter((entry) => entry.customerId === customer.id && entry.type === "Payment").sort((a, b) => b.date.localeCompare(a.date));
     const relatedLogs = charges.map((entry) => state.logs.find((log) => log.id === entry.logId)).filter(Boolean);
@@ -86,14 +91,35 @@ export default function Khata() {
       })),
       total,
       balanceDue,
-      status: balanceDue <= 0 ? "PAID" : "DUE",
+       status: customer.paymentStatus === "Paid" || balanceDue <= 0 ? "PAID" : "DUE",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
+      qrDataUrl,
     };
   };
 
-  const downloadReceipt = (customer: Customer) => {
-    const html = createInvoiceHtml(getInvoiceData(customer));
+  const downloadQr = (customer: Customer) => {
+    if (!qrDataUrl) return;
+    const anchor = document.createElement("a");
+    anchor.href = qrDataUrl;
+    anchor.download = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-payment-qr.png`;
+    anchor.click();
+  };
+
+  const shareQr = async (customer: Customer) => {
+    if (!qrDataUrl) return;
+    const response = await fetch(qrDataUrl);
+    const file = new File([await response.blob()], `${customer.name}-payment-qr.png`, { type: "image/png" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ title: `${state.settings.businessName} payment QR`, text: `Payment request for ${customer.name}`, files: [file] });
+    } else {
+      downloadQr(customer);
+    }
+  };
+
+  const downloadReceipt = async (customer: Customer) => {
+    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
+    const html = createInvoiceHtml(getInvoiceData(customer, qr));
     const anchor = document.createElement("a");
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const invoiceName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "customer"}-invoice.html`;
@@ -110,8 +136,10 @@ export default function Khata() {
     }, 1000);
   };
 
-  const printReceipt = (customer: Customer) => {
-    const html = createInvoiceHtml(getInvoiceData(customer));
+  const printReceipt = async (customer: Customer) => {
+    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
+    setQrDataUrl(qr);
+    const html = createInvoiceHtml(getInvoiceData(customer, qr));
     setInvoicePreview(html);
   };
 
@@ -127,7 +155,8 @@ export default function Khata() {
   };
 
   const shareReceipt = async (customer: Customer) => {
-    const html = createInvoiceHtml(getInvoiceData(customer));
+    const qr = qrDataUrl || await QRCode.toDataURL(buildPaymentPayload(customer), { width: 320, margin: 2 });
+    const html = createInvoiceHtml(getInvoiceData(customer, qr));
     const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-invoice.html`;
     const file = new File([html], fileName, { type: "text/html" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
@@ -143,15 +172,15 @@ export default function Khata() {
 
   return (
     <Layout>
-      <div className="pt-12 px-6 pb-6 bg-card border-b border-border sticky top-0 z-10 shadow-sm">
+      <div className="fm-page-header">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">Khata</h1>
-            <p className="text-sm text-muted-foreground font-medium mt-1">Customer Accounts</p>
+            <h1>Khata Book</h1>
+            <p>Customer accounts and work billing</p>
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <button className="bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+               <button className="fm-icon-button fm-primary-icon">
                 <Plus size={24} strokeWidth={3} />
               </button>
             </DialogTrigger>
@@ -259,14 +288,20 @@ export default function Khata() {
                      View Ledger
                   </button>
                 </div>
-                 <div className="flex items-center justify-between mt-3">
-                   <span className={`text-xs font-bold uppercase ${customer.completed ? "text-green-600" : "text-muted-foreground"}`}>
+                 <div className="flex items-center justify-between gap-2 mt-3">
+                    <span className={`text-xs font-bold uppercase ${customer.completed ? "text-emerald-400" : "text-muted-foreground"}`}>
                      {customer.completed ? "Work complete" : `${getCustomerCharges(customer.id).length} work entries`}
                    </span>
-                   <button onClick={() => dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id })} className="text-xs font-bold text-primary">
+                    {!customer.completed && <select aria-label={`Payment status for ${customer.name}`} value={customer.paymentStatus || ""} onChange={(event) => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: customer.id, paymentStatus: event.target.value || undefined, paymentDate: event.target.value ? new Date().toISOString().split("T")[0] : undefined } })} className={`rounded-lg border border-border bg-background px-2 py-1 text-[10px] font-black uppercase ${customer.paymentStatus === "Paid" ? "text-emerald-400" : customer.paymentStatus === "Delay" ? "text-amber-300" : "text-muted-foreground"}`}>
+                      <option value="">Payment status</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Delay">Delay</option>
+                    </select>}
+                    <button onClick={() => dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id })} className="text-xs font-bold text-primary whitespace-nowrap">
                      {customer.completed ? "Reopen customer" : "Mark work complete"}
                    </button>
                  </div>
+                  {customer.paymentStatus && <div className={`mt-2 flex items-center gap-1 text-[11px] font-bold ${customer.paymentStatus === "Paid" ? "text-emerald-400" : "text-amber-300"}`}><CheckCircle2 size={13} /> {customer.paymentStatus} {customer.paymentDate ? `• ${customer.paymentDate}` : ""}</div>}
               </div>
             )
           })
@@ -292,14 +327,14 @@ export default function Khata() {
                     return <div key={entry.id} className="flex items-center justify-between rounded-xl bg-muted p-3"><div><div className="font-bold text-sm">{entry.description}</div><div className="text-xs text-muted-foreground">{entry.date} • {vehicle?.name || "Vehicle"}</div></div><div className="font-black">₹{entry.amount.toLocaleString()}</div></div>;
                   })}
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
+                 <div className="grid grid-cols-2 gap-2 mt-4">
                   <button onClick={() => generatePaymentQr(customer)} className="bg-primary text-primary-foreground p-3 rounded-xl font-bold">Generate QR</button>
-                   <button onClick={() => printReceipt(customer)} className="bg-foreground text-background p-3 rounded-xl font-bold">Print / Save PDF</button>
+                    <button onClick={() => printReceipt(customer)} className="bg-foreground text-background p-3 rounded-xl font-bold flex items-center justify-center gap-1"><ReceiptText size={15} /> Receipt</button>
                 </div>
-                 <button onClick={() => downloadReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold">Download invoice file</button>
+                  <button onClick={() => downloadReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold flex items-center justify-center gap-2"><Download size={15} /> Download receipt</button>
                  {invoicePreview && <div className="mt-4 rounded-xl border border-border overflow-hidden bg-white"><iframe title="Invoice preview" srcDoc={invoicePreview} className="w-full h-[520px] border-0" /><button onClick={openPrintWindow} className="w-full bg-primary text-primary-foreground p-3 font-bold">Open preview &amp; print</button></div>}
-                {qrDataUrl && <div className="mt-5 text-center"><img src={qrDataUrl} alt="Payment QR" className="w-56 h-56 mx-auto rounded-xl" /><p className="text-xs text-muted-foreground mt-2">Scan to pay ₹{total.toLocaleString("en-IN")}</p><button onClick={() => navigator.share?.({ title: `${state.settings.businessName} payment`, text: `Payment for ${customer.name}: ₹${total.toLocaleString("en-IN")}` })} className="mt-3 text-sm font-bold text-primary">Share payment request</button></div>}
-                <button onClick={() => shareReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold">Share receipt</button>
+                 {qrDataUrl && <div className="mt-5 text-center"><img src={qrDataUrl} alt="Payment QR" className="w-56 h-56 mx-auto rounded-xl bg-white p-2" /><p className="text-xs text-muted-foreground mt-2">Scan to pay ₹{total.toLocaleString("en-IN")}</p><div className="mt-3 flex justify-center gap-4"><button onClick={() => downloadQr(customer)} className="text-sm font-bold text-primary flex items-center gap-1"><Download size={14} /> Download QR</button><button onClick={() => shareQr(customer)} className="text-sm font-bold text-primary flex items-center gap-1"><Share2 size={14} /> Share QR</button></div></div>}
+                 <button onClick={() => shareReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold flex items-center justify-center gap-2"><Share2 size={15} /> Share receipt</button>
               </>
             );
           })()}

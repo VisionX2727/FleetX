@@ -1,17 +1,23 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
 
-export type Vehicle = { id: string; name: string; type: string; regNumber: string; status: 'Active' | 'Idle' | 'Maintenance' };
+export type Vehicle = {
+  id: string; name: string; type: string; regNumber: string; status: 'Active' | 'Idle' | 'Maintenance';
+  driverName?: string; driverPhone?: string; currentSite?: string; hourlyRate?: number; engineHours?: number;
+  insuranceExpiry?: string; fitnessExpiry?: string; pucExpiry?: string; nextService?: string; notes?: string;
+};
+export type VehicleDay = { id: string; date: string; vehicleId: string; amount: number; diesel: number; trips: number; hours: number; status: Vehicle['status']; notes?: string };
 export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
-export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean };
+export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string };
 export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string };
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
-export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string };
-export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string };
+export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
+export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
 export type Settings = { businessName: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; isLoggedIn: boolean };
 
 export type AppState = {
   vehicles: Vehicle[];
+  fleetDays: VehicleDay[];
   logs: WorkLog[];
   customers: Customer[];
   ledgers: LedgerEntry[];
@@ -24,33 +30,33 @@ export type AppState = {
 const defaultSettings: Settings = { businessName: 'My Fleet', ownerName: 'Fleet Owner', phone: '', address: '', email: '', isLoggedIn: true };
 
 const defaultState: AppState = {
-  vehicles: [
-    { id: 'v1', name: 'Excavator 1', type: 'Excavator', regNumber: 'KA-01-EX-1234', status: 'Active' },
-    { id: 'v2', name: 'JCB Backhoe', type: 'Backhoe', regNumber: 'KA-02-JB-5678', status: 'Active' },
-    { id: 'v3', name: 'Tipper Truck', type: 'Truck', regNumber: 'KA-03-TR-9012', status: 'Maintenance' },
-  ],
-  logs: [
-    { id: 'l1', date: new Date().toISOString().split('T')[0], vehicleId: 'v1', driverId: 'd1', customerId: 'c1', description: 'Site clearing at layout', hours: 8, trips: 2, diesel: 75, amount: 12000, status: 'Pending' },
-  ],
-  customers: [
-    { id: 'c1', name: 'Ramesh Builders', phone: '9876543210', company: 'Ramesh Construction', address: 'Mysuru', completed: false },
-    { id: 'c2', name: 'Suresh Layouts', phone: '9876543211', company: 'SLV Developers', address: 'Bengaluru', completed: false },
-  ],
-  ledgers: [
-    { id: 'le1', customerId: 'c1', logId: 'l1', vehicleId: 'v1', date: new Date().toISOString().split('T')[0], type: 'Charge', amount: 12000, description: 'Site clearing' },
-  ],
-  fuelRecords: [
-    { id: 'f1', date: new Date().toISOString().split('T')[0], vehicleId: 'v1', driverId: 'd1', quantity: 150, cost: 13500, odometer: 12500 },
-  ],
-  drivers: [
-    { id: 'd1', name: 'Kumar', phone: '9988776655', type: 'Regular', dailyRate: 1000 },
-    { id: 'd2', name: 'Raju', phone: '9988776656', type: 'Temporary', dailyRate: 1200 },
-  ],
-  driverPays: [
-    { id: 'dp1', driverId: 'd1', date: new Date().toISOString().split('T')[0], amount: 5000, description: 'Weekly advance' },
-  ],
+  vehicles: [],
+  fleetDays: [],
+  logs: [],
+  customers: [],
+  ledgers: [],
+  fuelRecords: [],
+  drivers: [],
+  driverPays: [],
   settings: defaultSettings,
 };
+
+function normalizeState(value: Partial<AppState>): AppState {
+  const fresh = cloneDefaultState();
+  return {
+    ...fresh,
+    ...value,
+    vehicles: value.vehicles || fresh.vehicles,
+    fleetDays: value.fleetDays || [],
+    logs: value.logs || fresh.logs,
+    customers: value.customers || fresh.customers,
+    ledgers: value.ledgers || fresh.ledgers,
+    fuelRecords: value.fuelRecords || fresh.fuelRecords,
+    drivers: value.drivers || fresh.drivers,
+    driverPays: value.driverPays || fresh.driverPays,
+    settings: { ...fresh.settings, ...(value.settings || {}) },
+  };
+}
 
 type StoreContextType = {
   state: AppState;
@@ -76,7 +82,7 @@ export function StoreProvider({ children, userId }: { children: ReactNode; userI
     const saved = scopedSaved || (legacySaved && !legacyOwner ? legacySaved : null);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as AppState;
+        const parsed = normalizeState(JSON.parse(saved) as Partial<AppState>);
         if (!scopedSaved && legacySaved && !legacyOwner) {
           localStorage.setItem("fleet-manager-legacy-owner", userId);
           localStorage.setItem(scopedKey, saved);
@@ -106,7 +112,7 @@ export function StoreProvider({ children, userId }: { children: ReactNode; userI
       if (!mounted) return;
       const remoteState = data.user?.user_metadata?.fleet_manager_data;
       if (remoteState && typeof remoteState === "object") {
-        setState(remoteState as AppState);
+          setState(normalizeState(remoteState as Partial<AppState>));
       }
       setCloudLoaded(true);
     });
@@ -133,7 +139,14 @@ export function StoreProvider({ children, userId }: { children: ReactNode; userI
         case 'UPDATE_VEHICLE':
           return { ...prev, vehicles: prev.vehicles.map(v => v.id === action.payload.id ? { ...v, ...action.payload } : v) };
         case 'DELETE_VEHICLE':
-          return { ...prev, vehicles: prev.vehicles.filter(v => v.id !== action.payload) };
+          return { ...prev, vehicles: prev.vehicles.filter(v => v.id !== action.payload), fleetDays: prev.fleetDays.filter(day => day.vehicleId !== action.payload) };
+
+        case 'ADD_FLEET_DAY':
+          return { ...prev, fleetDays: [...prev.fleetDays, { id: `fd${Date.now()}`, ...action.payload }] };
+        case 'UPDATE_FLEET_DAY':
+          return { ...prev, fleetDays: prev.fleetDays.map(day => day.id === action.payload.id ? { ...day, ...action.payload } : day) };
+        case 'DELETE_FLEET_DAY':
+          return { ...prev, fleetDays: prev.fleetDays.filter(day => day.id !== action.payload) };
         
         // Log Actions
         case 'ADD_LOG':
