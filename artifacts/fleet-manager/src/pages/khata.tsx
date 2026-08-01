@@ -18,7 +18,9 @@ export default function Khata() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
   const [invoicePreview, setInvoicePreview] = useState("");
+  const [receiptActionsOpen, setReceiptActionsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [khataTab, setKhataTab] = useState<"work" | "payments">("work");
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
@@ -85,10 +87,16 @@ export default function Khata() {
 
   const generatePaymentQr = async (customer: Customer) => {
     const amount = Math.max(0, getCustomerBalance(customer));
-    if (!amount) return;
     const upi = state.settings.upiId || "fleet-owner@upi";
-    const payload = `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(state.settings.businessName)}&am=${amount}&cu=INR`;
-    setQrDataUrl(await QRCode.toDataURL(payload, { width: 260, margin: 2 }));
+    const amountPart = amount > 0 ? `&am=${amount}` : "";
+    const payload = `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(state.settings.businessName)}${amountPart}&cu=INR`;
+    try {
+      const dataUrl = await QRCode.toDataURL(payload, { width: 280, margin: 2, errorCorrectionLevel: "M" });
+      setQrDataUrl(dataUrl);
+      setQrOpen(true);
+    } catch (error) {
+      console.error("Could not generate payment QR", error);
+    }
   };
 
   const getInvoiceData = (customer: Customer): InvoiceData => {
@@ -136,13 +144,19 @@ export default function Khata() {
           duration,
         };
       }),
+      payments: payments.map((payment) => ({
+        date: payment.date,
+        amount: payment.amount,
+        paymentMode: payment.paymentMode,
+        description: payment.description,
+      })),
       total,
       subtotal,
       gstPercentage: state.settings.gstPercentage || 0,
       gstAmount,
       addGst: Boolean(customer.addGst && state.settings.gstPercentage),
       balanceDue: getCustomerBalance(customer),
-      status: customer.paymentStatus === "Paid" || getCustomerBalance(customer) <= 0 ? "PAID" : "DUE",
+      status: customer.paymentStatus === "Paid" ? "PAID" : "PENDING",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
       paymentMode: payments[0]?.paymentMode || "—",
@@ -189,9 +203,10 @@ export default function Khata() {
     printWindow.document.close();
   };
 
-  const downloadQr = (customer: Customer) => {
+  const downloadQr = async (customer: Customer) => {
     if (!qrDataUrl) return;
-    downloadBlob(new Blob([atob(qrDataUrl.split(",")[1])], { type: "image/png" }), `${customer.name}-payment-qr.png`);
+    const response = await fetch(qrDataUrl);
+    downloadBlob(await response.blob(), `${customer.name}-payment-qr.png`);
   };
 
   const shareQr = async (customer: Customer) => {
@@ -201,7 +216,7 @@ export default function Khata() {
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       await navigator.share({ title: `${state.settings.businessName} payment QR`, text: `Payment request for ${customer.name}`, files: [file] });
     } else {
-      downloadQr(customer);
+      await downloadQr(customer);
     }
   };
 
@@ -209,6 +224,8 @@ export default function Khata() {
     setSelectedCustomer(null);
     setQrDataUrl("");
     setInvoicePreview("");
+    setQrOpen(false);
+    setReceiptActionsOpen(false);
   };
 
   if (selected) {
@@ -234,7 +251,7 @@ export default function Khata() {
               <div><div className="text-xl font-black text-rose-400">₹{balance.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Outstanding</div></div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: "Paid", paymentDate: today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
+              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
               <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: "Delay" } })} className={`rounded-2xl p-3 font-bold ${selected.paymentStatus === "Delay" ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
             </div>
           </section>
@@ -247,9 +264,9 @@ export default function Khata() {
           ) : null}
 
           <div className="grid grid-cols-3 gap-3">
-            <button type="button" onClick={() => generatePaymentQr(selected)} className="rounded-2xl bg-primary p-3 text-sm font-bold text-primary-foreground"><QrCode className="mx-auto mb-1" size={19} />Pay QR</button>
+            <button type="button" onClick={() => void generatePaymentQr(selected)} className="rounded-2xl bg-primary p-3 text-sm font-bold text-primary-foreground"><QrCode className="mx-auto mb-1" size={19} />Pay QR</button>
             <button type="button" onClick={openPayment} className="rounded-2xl bg-blue-500 p-3 text-sm font-bold text-white"><CirclePlus className="mx-auto mb-1" size={19} />Payment</button>
-            <button type="button" onClick={() => printReceipt(selected)} className="rounded-2xl bg-violet-500 p-3 text-sm font-bold text-white"><ReceiptText className="mx-auto mb-1" size={19} />Receipt</button>
+            <button type="button" onClick={() => setReceiptActionsOpen(true)} className="rounded-2xl bg-violet-500 p-3 text-sm font-bold text-white"><ReceiptText className="mx-auto mb-1" size={19} />Receipt</button>
           </div>
 
           <div className="grid grid-cols-2 border-b border-border">
@@ -278,9 +295,24 @@ export default function Khata() {
             <button type="button" onClick={() => downloadReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Download className="mr-1 inline" size={15} />PDF</button>
             <button type="button" onClick={() => shareReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Share2 className="mr-1 inline" size={15} />Share PDF</button>
           </div>
-          {qrDataUrl && <div className="rounded-2xl border border-border bg-card p-4 text-center"><img src={qrDataUrl} alt="Payment QR" className="mx-auto h-56 w-56 rounded-xl bg-white p-2" /><p className="mt-2 text-xs text-muted-foreground">Scan to pay ₹{Math.max(0, balance).toLocaleString("en-IN")}</p><div className="mt-3 flex justify-center gap-5"><button type="button" onClick={() => downloadQr(selected)} className="text-sm font-bold text-primary"><Download className="mr-1 inline" size={14} />Download QR</button><button type="button" onClick={() => shareQr(selected)} className="text-sm font-bold text-primary"><Share2 className="mr-1 inline" size={14} />Share QR</button></div></div>}
           {invoicePreview && <div className="rounded-xl border border-border bg-white overflow-hidden"><iframe title="Receipt preview" srcDoc={invoicePreview} className="h-[520px] w-full border-0" /><button type="button" onClick={openPrintWindow} className="w-full bg-primary p-3 font-bold text-primary-foreground">Open preview &amp; print</button></div>}
         </div>
+        <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+          <DialogContent className="w-[90vw] max-w-sm rounded-2xl text-center">
+            <DialogHeader><DialogTitle className="text-xl font-black">Payment QR</DialogTitle></DialogHeader>
+            {qrDataUrl && <><img src={qrDataUrl} alt="Payment QR" className="mx-auto h-64 w-64 rounded-xl bg-white p-2" /><p className="text-sm text-muted-foreground">Scan to pay {Math.max(0, balance) ? `₹${Math.max(0, balance).toLocaleString("en-IN")}` : "any amount"}</p><div className="mt-3 flex justify-center gap-5"><button type="button" onClick={() => downloadQr(selected)} className="text-sm font-bold text-primary"><Download className="mr-1 inline" size={14} />Download QR</button><button type="button" onClick={() => shareQr(selected)} className="text-sm font-bold text-primary"><Share2 className="mr-1 inline" size={14} />Share QR</button></div></>}
+          </DialogContent>
+        </Dialog>
+        <Dialog open={receiptActionsOpen} onOpenChange={setReceiptActionsOpen}>
+          <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
+            <DialogHeader><DialogTitle className="text-xl font-black">Receipt</DialogTitle></DialogHeader>
+            <div className="grid gap-3 pt-3">
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); void shareReceipt(selected); }} className="rounded-xl bg-primary p-4 font-bold text-primary-foreground"><Share2 className="mr-2 inline" size={18} />Share PDF</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); downloadReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><Download className="mr-2 inline" size={18} />Download PDF</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); printReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><ReceiptText className="mr-2 inline" size={18} />View Receipt</button>
+            </div>
+          </DialogContent>
+        </Dialog>
         <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
           <DialogContent className="w-full max-w-md rounded-t-[28px] border-border bg-card p-6 sm:rounded-2xl">
             <DialogHeader><DialogTitle className="text-2xl font-black">Add Payment Received</DialogTitle></DialogHeader>

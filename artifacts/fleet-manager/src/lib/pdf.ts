@@ -37,6 +37,7 @@ export function createInvoicePdf(data: InvoiceData) {
     "",
     `Subtotal: INR ${(data.subtotal ?? data.total).toLocaleString("en-IN")}`,
     ...(data.addGst && data.gstAmount ? [`GST (${data.gstPercentage || 0}%): INR ${data.gstAmount.toLocaleString("en-IN")}`] : []),
+    ...(data.payments || []).flatMap((payment) => wrap(`Paid: ${payment.paymentMode || "Payment"}${payment.description ? ` - ${payment.description}` : ""} on ${payment.date}: INR ${payment.amount.toLocaleString("en-IN")}`)),
     `Grand Total: INR ${data.total.toLocaleString("en-IN")}`,
     `Amount in words: ${data.total.toLocaleString("en-IN")} rupees only`,
     "",
@@ -51,9 +52,9 @@ export function createInvoicePdf(data: InvoiceData) {
     `GSTIN: ${data.addGst ? data.gstNumber || "—" : "Not applicable"}`,
   ].filter(Boolean).flatMap(wrap);
 
-  const content: string[] = ["BT", "/F1 11 Tf", "40 800 Td"];
+  const content: string[] = ["BT", "/F1 10 Tf", "40 800 Td"];
   lines.forEach((line, index) => {
-    if (index > 0) content.push("0 -16 Td");
+    if (index > 0) content.push("0 -14 Td");
     content.push(`(${escapePdfText(line)}) Tj`);
   });
   content.push("ET");
