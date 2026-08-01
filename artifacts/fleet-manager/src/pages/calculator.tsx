@@ -50,7 +50,7 @@ export default function Calculator() {
   return (
     <Layout>
       <div className="min-h-[calc(100dvh-32px)] bg-background">
-        <header className="flex items-center gap-3 px-7 pt-7 text-[27px] font-black">
+        <header className="flex items-center gap-3 px-7 pt-3 text-[27px] font-black">
           <CalculatorIcon className="text-primary" size={24} />
           <h1>Calculator</h1>
         </header>

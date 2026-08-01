@@ -24,7 +24,7 @@ export default function Fleet() {
   const [dayData, setDayData] = useState<Partial<VehicleDay>>(emptyDay);
   const [typeFilter, setTypeFilter] = useState("All");
 
-  const types = ["All", ...Array.from(new Set(state.vehicles.map((vehicle) => vehicle.type))).filter(Boolean)];
+  const types = ["All", "JCB", "Hywa", "Tipper", "Crane"];
   const visibleVehicles = typeFilter === "All" ? state.vehicles : state.vehicles.filter((vehicle) => vehicle.type === typeFilter);
 
   const openAdd = () => {

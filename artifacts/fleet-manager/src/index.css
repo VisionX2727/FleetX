@@ -126,7 +126,7 @@
 
 @layer components {
   .fm-app-shell { @apply min-h-[100dvh] bg-background text-foreground; }
-  .fm-status-bar { @apply h-8 bg-[#1b2d3c] px-5 flex items-center justify-between text-[10px] font-bold text-white/90; }
+  .fm-status-bar { @apply h-[52px] bg-[#1b2d3c] px-5 flex items-center justify-between text-[10px] font-bold text-white/90; }
   .fm-status-pill { @apply rounded-full bg-black px-4 py-1 text-[10px] font-medium; }
   .fm-status-icons { @apply text-[8px] tracking-tight text-white/80; }
   .fm-main-content { @apply min-h-[calc(100dvh-88px)] pb-20; }
@@ -134,7 +134,7 @@
   .fm-page-header h1 { @apply text-[27px] font-black tracking-tight; }
   .fm-page-header p { @apply text-sm text-muted-foreground mt-1; }
   .fm-page-content { @apply px-5 py-5 pb-24; }
-  .fm-filter-row { @apply flex gap-2 overflow-x-auto px-4 py-3 border-b border-border bg-[#1b2d3c]; scrollbar-width: none; }
+  .fm-filter-row { @apply flex gap-2 overflow-x-auto px-4 py-4 border-b border-border bg-[#1b2d3c]; scrollbar-width: none; }
   .fm-filter-row::-webkit-scrollbar { display: none; }
   .fm-filter-pill { @apply whitespace-nowrap rounded-full bg-[#244269] px-5 py-2 text-sm font-bold text-muted-foreground transition active:scale-95; }
   .fm-filter-pill.is-selected { @apply bg-primary text-primary-foreground; }
@@ -144,7 +144,7 @@
   .fm-submit-button { @apply w-full mt-2 py-4; }
   .fm-card { @apply rounded-[20px] border border-border bg-card; }
   .fm-stack { @apply space-y-3; }
-  .fm-empty-state { @apply flex min-h-[58vh] flex-col items-center justify-center gap-4 text-center text-muted-foreground; }
+  .fm-empty-state { @apply flex min-h-[68vh] flex-col items-center justify-center gap-4 text-center text-muted-foreground; }
   .fm-empty-state svg { @apply text-muted-foreground/50; }
   .fm-empty-state p { @apply text-base; }
   .fm-vehicle-card { @apply p-4; }
@@ -202,7 +202,7 @@
   .fm-section-heading h2 { @apply text-base font-black uppercase tracking-wider; }
   .fm-section-heading a { @apply text-xs font-black text-primary; }
   .fm-quick-grid { @apply grid grid-cols-2 gap-3; }
-  .fm-quick-action { @apply flex min-h-28 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center text-sm font-black transition active:scale-95; }
+  .fm-quick-action { @apply flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center text-sm font-black transition active:scale-95; }
   .fm-quick-action svg { @apply text-primary; }
   .fm-ring { @apply relative flex h-40 w-40 items-center justify-center rounded-full; }
   .fm-ring::before { content: ""; @apply absolute inset-3 rounded-full bg-card; }
@@ -216,7 +216,7 @@
   .fm-bottom-item.is-active svg { @apply text-primary; }
   .fm-home-header { @apply flex items-center justify-between bg-[#1b2d3c] px-5 py-4; }
   .fm-home-brand { @apply flex items-center gap-3; }
-  .fm-home-brand img, .fm-home-logo { @apply h-12 w-12 rounded-full border-2 border-primary object-cover; }
+  .fm-home-brand img, .fm-home-logo { @apply h-14 w-14 rounded-full border-2 border-primary object-cover; }
   .fm-home-logo { @apply flex items-center justify-center bg-primary text-primary-foreground text-sm font-black; }
   .fm-home-greeting { @apply text-xs text-muted-foreground; }
   .fm-home-title { @apply text-xl font-black text-primary; }
@@ -239,7 +239,7 @@
   .fm-settings-label { @apply block text-[10px] font-bold text-muted-foreground; }
   .fm-settings-label input, .fm-settings-label textarea { @apply mt-1 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm font-semibold text-foreground outline-none focus:border-primary; }
   .fm-settings-label textarea { @apply min-h-20 resize-none; }
-  .fm-driver-empty { @apply flex min-h-[68vh] flex-col items-center justify-center gap-3 text-center text-muted-foreground; }
+  .fm-driver-empty { @apply flex min-h-[72vh] flex-col items-center justify-center gap-3 text-center text-muted-foreground; }
   .fm-driver-empty svg { @apply text-muted-foreground/70; }
   .fm-driver-empty h3 { @apply text-2xl font-black text-foreground; }
   .fm-driver-empty p { @apply max-w-[320px] text-lg; }

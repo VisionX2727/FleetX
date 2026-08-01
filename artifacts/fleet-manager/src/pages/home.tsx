@@ -3,6 +3,8 @@ import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings } from "lucide-react";
 
+const fallbackLogo = `${import.meta.env.BASE_URL}rajmudra-logo.png`;
+
 export default function Home() {
   const { state } = useStore();
   const today = new Date().toISOString().split("T")[0];
@@ -17,7 +19,7 @@ export default function Home() {
     <Layout>
       <header className="fm-home-header">
         <div className="fm-home-brand">
-          {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" /> : <div className="fm-home-logo">{(state.settings.businessName || "FM").slice(0, 2).toUpperCase()}</div>}
+          <img src={state.settings.logoUrl || fallbackLogo} alt="Business logo" />
           <div>
             <div className="fm-home-greeting">{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</div>
             <div className="fm-home-title">{state.settings.businessName || "Fleet Manager"}</div>
@@ -44,7 +46,7 @@ export default function Home() {
         <section>
           <div className="fm-section-heading"><h2>Live Fleet Status</h2><Link href="/drivers">Drivers</Link></div>
           <div className="fm-card p-4">
-            {state.vehicles.length === 0 ? <div className="fm-empty-state min-h-32"><Truck size={40} /><p>No vehicles. Tap to add in Fleet.</p><Link href="/fleet" className="fm-primary-button"><Plus size={17} /> Add Vehicle</Link></div> : <div className="grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl font-black text-emerald-400">{active}</strong><span className="text-xs text-muted-foreground">Active</span></div><div><strong className="block text-2xl font-black text-amber-300">{idle}</strong><span className="text-xs text-muted-foreground">Idle</span></div><div><strong className="block text-2xl font-black text-rose-300">{maintenance}</strong><span className="text-xs text-muted-foreground">Maintenance</span></div></div>}
+            {state.vehicles.length === 0 ? <div className="fm-empty-state min-h-32"><Truck size={40} /><p>No vehicles. Tap to add in Fleet.</p></div> : <div className="grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl font-black text-emerald-400">{active}</strong><span className="text-xs text-muted-foreground">Active</span></div><div><strong className="block text-2xl font-black text-amber-300">{idle}</strong><span className="text-xs text-muted-foreground">Idle</span></div><div><strong className="block text-2xl font-black text-rose-300">{maintenance}</strong><span className="text-xs text-muted-foreground">Maintenance</span></div></div>}
           </div>
         </section>
 

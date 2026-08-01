@@ -92,9 +92,6 @@ export default function Logs() {
         <div>
           <h1>Daily Work Entry</h1>
         </div>
-        <button type="button" className="fm-icon-button fm-primary-icon" onClick={() => setIsAddOpen(true)} aria-label="Add work entry">
-          <Plus size={25} strokeWidth={3} />
-        </button>
         <div className="hidden">
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>

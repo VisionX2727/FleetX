@@ -7,6 +7,8 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 
+const fallbackLogo = `${import.meta.env.BASE_URL}rajmudra-logo.png`;
+
 export default function Settings() {
   const { state, dispatch } = useStore();
   const { toast } = useToast();
@@ -91,7 +93,7 @@ export default function Settings() {
           <div className="fm-settings-section-title">Business Logo</div>
           <p className="fm-settings-help">Used on receipts, invoices and app header</p>
           <div className="flex justify-center py-2">
-            {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" className="h-20 w-20 rounded-full border-2 border-primary object-cover" /> : <div className="fm-settings-logo-placeholder">{(businessName || "FM").slice(0, 2).toUpperCase()}</div>}
+            <img src={state.settings.logoUrl || fallbackLogo} alt="Business logo" className="h-20 w-20 rounded-full border-2 border-primary object-cover" />
           </div>
           <label className="mx-auto flex w-fit items-center justify-center gap-2 rounded-full border border-dashed border-border px-4 py-2 text-xs font-bold cursor-pointer">
             <ImagePlus size={15} /> Change Logo
@@ -106,7 +108,6 @@ export default function Settings() {
 
         <section className="fm-settings-card space-y-3">
           <div className="fm-settings-section-title">Owner / Business Info</div>
-          <label className="fm-settings-label">Business Name<input value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Business name" /></label>
           <label className="fm-settings-label">Owner / Company Name<input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Your Name / Company" /></label>
           <label className="fm-settings-label">Phone Number<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" /></label>
           <label className="fm-settings-label">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" /></label>
@@ -120,6 +121,8 @@ export default function Settings() {
           <label className="fm-settings-label">Bank Name<input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Bank name" /></label>
           <label className="fm-settings-label">GST Number<input value={gstNumber} onChange={e => setGstNumber(e.target.value)} placeholder="GST number (optional)" /></label>
         </section>
+
+        <button type="button" onClick={handleSave} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary p-4 font-black text-primary-foreground"><Save size={17} /> Save All Settings</button>
 
         <section className="fm-settings-card space-y-4">
           <div className="flex items-center gap-3">
@@ -155,7 +158,6 @@ export default function Settings() {
           </div>
         </section>
       </div>
-      <button type="button" onClick={handleSave} className="mx-3 mb-5 flex w-[calc(100%-1.5rem)] items-center justify-center gap-2 rounded-xl bg-primary p-4 font-black text-primary-foreground"><Save size={17} /> Save All Settings</button>
     </Layout>
   );
 }
