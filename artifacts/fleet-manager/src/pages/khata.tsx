@@ -50,28 +50,57 @@ export default function Khata() {
     setReceiptCustomerId(customer.id);
   };
 
-  const downloadReceipt = (customer: Customer) => {
+  const receiptText = (customer: Customer) => {
     const charges = getCustomerCharges(customer.id);
     const total = getCustomerBalance(customer.id);
     const lines = [
-      state.settings.businessName,
+      state.settings.businessName || "Fleet Manager",
       state.settings.ownerName || "",
-      state.settings.address || "",
       state.settings.phone || "",
       "",
       `Customer: ${customer.name}`,
       customer.address || "",
-      `Total due: ₹${total.toLocaleString()}`,
+      `Total due: ₹${total.toLocaleString("en-IN")}`,
       "",
-      ...charges.map((entry) => `${entry.date}  ${entry.description}  ₹${entry.amount.toLocaleString()}`),
-    ].join("\n");
-    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+      ...charges.map((entry) => `${entry.date} ${entry.description} ₹${entry.amount.toLocaleString("en-IN")}`),
+    ];
+    return lines.join("\r\n");
+  };
+
+  const receiptFileName = (customer: Customer) =>
+    `${customer.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "customer"}-receipt.txt`;
+
+  const downloadReceipt = (customer: Customer) => {
+    const blob = new Blob([receiptText(customer)], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${customer.name.replace(/\s+/g, "-").toLowerCase()}-receipt.txt`;
+    anchor.download = receiptFileName(customer);
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  };
+
+  const shareReceipt = async (customer: Customer) => {
+    const file = new File([receiptText(customer)], receiptFileName(customer), { type: "text/plain" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      try {
+        await navigator.share({
+          title: `${state.settings.businessName} receipt`,
+          text: `Receipt for ${customer.name}`,
+          files: [file],
+        });
+        return;
+      } catch (error) {
+        if ((error as DOMException)?.name === "AbortError") return;
+      }
+    }
+    downloadReceipt(customer);
   };
 
   return (
@@ -225,7 +254,8 @@ export default function Khata() {
                   <button onClick={() => generatePaymentQr(customer)} className="bg-primary text-primary-foreground p-3 rounded-xl font-bold">Generate QR</button>
                   <button onClick={() => downloadReceipt(customer)} className="bg-foreground text-background p-3 rounded-xl font-bold">Download receipt</button>
                 </div>
-                {qrDataUrl && <div className="mt-5 text-center"><img src={qrDataUrl} alt="Payment QR" className="w-56 h-56 mx-auto rounded-xl" /><p className="text-xs text-muted-foreground mt-2">Scan to pay ₹{total.toLocaleString()}</p><button onClick={() => navigator.share?.({ title: `${state.settings.businessName} payment`, text: `Payment for ${customer.name}: ₹${total.toLocaleString()}` })} className="mt-3 text-sm font-bold text-primary">Share payment request</button></div>}
+                {qrDataUrl && <div className="mt-5 text-center"><img src={qrDataUrl} alt="Payment QR" className="w-56 h-56 mx-auto rounded-xl" /><p className="text-xs text-muted-foreground mt-2">Scan to pay ₹{total.toLocaleString("en-IN")}</p><button onClick={() => navigator.share?.({ title: `${state.settings.businessName} payment`, text: `Payment for ${customer.name}: ₹${total.toLocaleString("en-IN")}` })} className="mt-3 text-sm font-bold text-primary">Share payment request</button></div>}
+                <button onClick={() => shareReceipt(customer)} className="w-full mt-2 border border-border text-foreground p-3 rounded-xl font-bold">Share receipt</button>
               </>
             );
           })()}

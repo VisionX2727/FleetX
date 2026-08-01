@@ -23,14 +23,33 @@ export default function Settings() {
 
   useEffect(() => {
     if (!supabaseConfigured) return;
-    supabase.auth.getUser().then(({ data }) => {
-      const user = data.user;
+
+    const updateAuthUser = (user: { email?: string; user_metadata?: Record<string, unknown> } | null) => {
       setAuthUser(user ? {
         email: user.email,
-        name: user.user_metadata?.full_name || user.user_metadata?.name,
+        name: typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : typeof user.user_metadata?.name === "string"
+            ? user.user_metadata.name
+            : undefined,
       } : null);
+    };
+
+    supabase.auth.getSession().then(({ data }) => updateAuthUser(data.session?.user || null));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      updateAuthUser(session?.user || null);
+      setAuthBusy(false);
     });
-  }, []);
+
+    const callbackError = new URLSearchParams(window.location.search).get("error_description")
+      || new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description");
+    if (callbackError) {
+      toast({ title: "Google sign-in was not completed", description: decodeURIComponent(callbackError.replace(/\+/g, " ")) });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    return () => listener.subscription.unsubscribe();
+  }, [toast]);
 
   const handleGoogleSignIn = async () => {
     if (!supabaseConfigured) {
@@ -38,12 +57,16 @@ export default function Settings() {
       return;
     }
     setAuthBusy(true);
+    const appBaseUrl = new URL(import.meta.env.BASE_URL, window.location.origin);
+    const redirectTo = new URL("settings", appBaseUrl).toString();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin + "/settings" },
+      options: { redirectTo },
     });
-    if (error) toast({ title: "Sign-in failed", description: error.message });
-    setAuthBusy(false);
+    if (error) {
+      toast({ title: "Sign-in failed", description: error.message });
+      setAuthBusy(false);
+    }
   };
 
   const handleLogout = async () => {
