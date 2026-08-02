@@ -29,7 +29,7 @@ export type AppState = {
   settings: Settings;
 };
 
-const defaultSettings: Settings = { businessName: 'Fleet Manager', companyName: '', ownerName: '', phone: '', address: '', email: '', gstPercentage: 0, isLoggedIn: true };
+const defaultSettings: Settings = { businessName: 'FleetX', companyName: '', ownerName: '', phone: '', address: '', email: '', gstPercentage: 0, isLoggedIn: true };
 
 const defaultState: AppState = {
   vehicles: [],

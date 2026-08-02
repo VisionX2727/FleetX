@@ -17,6 +17,7 @@ import Calculator from '@/pages/calculator';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
 import Notes from '@/pages/notes';
+import splashImage from '@assets/file_000000003f5082078eac895695d82a2a_1785659309338.png';
 
 const queryClient = new QueryClient();
 
@@ -55,7 +56,11 @@ function AuthenticatedShell() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-[100dvh] bg-primary flex items-center justify-center"><div className="font-black text-2xl">Fleet Manager</div></div>;
+    return (
+      <main className="fm-splash-screen" aria-label="FleetX loading">
+        <img src={splashImage} alt="FleetX loading" />
+      </main>
+    );
   }
   if (!user) return <Login />;
 

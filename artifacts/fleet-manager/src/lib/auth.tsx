@@ -13,6 +13,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const MINIMUM_SPLASH_MS = 1200;
 
 function getCallbackError() {
   const queryError = new URLSearchParams(window.location.search).get("error_description");
@@ -93,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
+    const authStartedAt = Date.now();
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
@@ -128,7 +130,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearOAuthCallbackParams();
         setSession(null);
       } finally {
-        if (mounted) setLoading(false);
+        const remainingSplashTime = Math.max(0, MINIMUM_SPLASH_MS - (Date.now() - authStartedAt));
+        window.setTimeout(() => {
+          if (mounted) setLoading(false);
+        }, remainingSplashTime);
       }
     };
 

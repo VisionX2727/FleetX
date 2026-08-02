@@ -62,3 +62,9 @@ Supabase Google sign-in uses browser PKCE with explicit callback exchange, accou
 **Why:** Switching Google accounts in one browser can otherwise reuse stale callback/verifier state, or let automatic URL detection race the auth gate, producing a Supabase flow-state error before a session reaches the app.
 
 **How to apply:** Preserve explicit `exchangeCodeForSession`, `flowType: "pkce"`, app-specific auth storage, `prompt: "select_account"`, `signOut({ scope: "local" })`, and the current-origin/base-path redirect. Redirect URLs must still be allow-listed in Supabase for every domain used.
+
+FleetX is the user-facing app brand, with the supplied FleetX artwork used as the pre-login/auth initialization splash screen.
+
+**Why:** The user explicitly renamed the app from Fleet Manager to FleetX and provided the splash artwork as the visual source of truth.
+
+**How to apply:** Keep FleetX in visible app metadata, login/loading UI, and default-brand fallbacks; preserve any user-entered business/company name separately.

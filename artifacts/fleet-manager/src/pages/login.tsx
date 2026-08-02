@@ -11,7 +11,7 @@ export default function Login() {
           <div className="w-20 h-20 mx-auto bg-card border border-border rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-black/20">
             <Truck className="text-primary" size={40} />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">Fleet Manager</h1>
+           <h1 className="text-3xl font-black tracking-tight text-foreground">FleetX</h1>
           <p className="text-muted-foreground mt-2 font-medium">Run your vehicles, work logs, drivers and accounts from one place.</p>
         </div>
 
@@ -24,7 +24,7 @@ export default function Login() {
             </div>
             <div>
               <h2 className="font-bold text-foreground text-lg">Sign in to continue</h2>
-              <p className="text-sm text-muted-foreground mt-0.5 leading-snug">Your fleet records are saved to your Google account.</p>
+           <p className="text-sm text-muted-foreground mt-0.5 leading-snug">Your FleetX records are saved to your Google account.</p>
             </div>
           </div>
 

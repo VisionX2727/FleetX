@@ -125,6 +125,12 @@
 }
 
 @layer components {
+  .fm-splash-screen {
+    @apply min-h-[100dvh] w-full overflow-hidden bg-[#070d1c];
+  }
+  .fm-splash-screen img {
+    @apply block h-[100dvh] w-full object-contain;
+  }
   .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; margin: 0 auto; font-size: 0.96rem; }
   .fm-main-content { @apply min-h-[calc(100dvh-68px)] overflow-x-hidden pb-20; }
   .fm-page-header { @apply bg-[#1b2d3c] border-b border-border px-5 py-4 flex items-center justify-between; }

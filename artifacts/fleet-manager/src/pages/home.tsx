@@ -20,7 +20,7 @@ export default function Home() {
            {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" /> : <div className="fm-home-logo"><UserCircle size={30} /></div>}
           <div>
             <div className="fm-home-greeting">{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</div>
-            <div className="fm-home-title">{state.settings.businessName || "Fleet Manager"}</div>
+            <div className="fm-home-title">{state.settings.businessName || "FleetX"}</div>
           </div>
         </div>
         <div className="fm-home-header-actions">
