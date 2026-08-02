@@ -25,4 +25,14 @@ export const supabaseConfigured =
   supabaseUrl !== "https://placeholder.supabase.co" &&
   supabasePublishableKey !== "placeholder-publishable-key";
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey);
+// Use PKCE explicitly instead of relying on the SDK's implicit-flow default.
+// The verifier is kept by Supabase Auth in browser storage and is consumed once
+// when the OAuth callback returns. No application data is stored here.
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: "pkce",
+  },
+});

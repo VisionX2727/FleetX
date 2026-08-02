@@ -52,6 +52,7 @@ export default function Settings() {
       toast({ title: "Could not sign out", description: error.message });
     } else {
       toast({ title: "Signed out", description: "Your Google account data remains safely linked to your account." });
+      window.location.replace(new URL(import.meta.env.BASE_URL || "/", window.location.origin).toString());
     }
   };
 

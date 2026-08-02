@@ -56,3 +56,9 @@ Notes are account-scoped local-first records with automatic creation dates and e
 **Why:** The user needs a lightweight place for arbitrary fleet reminders without mixing notes into customer ledgers or work logs.
 
 **How to apply:** Keep notes independent from vehicles, customers, and receipts unless a future request explicitly links them.
+
+Supabase Google sign-in uses browser PKCE with account selection, local-only logout, and callback URL cleanup; workspace data remains keyed by the Supabase auth user ID.
+
+**Why:** Switching Google accounts in one browser can otherwise reuse a stale OAuth callback/verifier and produce a Supabase flow-state error before a session reaches the app.
+
+**How to apply:** Preserve `flowType: "pkce"`, `prompt: "select_account"`, `signOut({ scope: "local" })`, and the current-origin/base-path redirect when changing authentication code. Redirect URLs must still be allow-listed in Supabase for every domain used.
