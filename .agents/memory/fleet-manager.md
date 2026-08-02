@@ -80,3 +80,9 @@ Vercel must build the FleetX frontend artifact directly rather than running the 
 **Why:** The product is a Vite SPA that uses Supabase directly; the API artifact is not part of its Vercel static hosting path.
 
 **How to apply:** Keep Vercel's root-level configuration pointed at the fleet-manager build and output directory, with SPA rewrites to `index.html`.
+
+Vercel can use either the repository root or `artifacts/fleet-manager` as its Root Directory, but the output directory must be relative to that choice: `artifacts/fleet-manager/dist/public` at repo root, or `dist/public` inside the artifact.
+
+**Why:** Vercel reports a successful build but fails afterward when it searches the default `public` folder relative to a different project root.
+
+**How to apply:** Prefer `artifacts/fleet-manager` as Root Directory with the artifact-level `vercel.json`, or use the repository root with the root-level config; do not mix one root with the other root's output path.
