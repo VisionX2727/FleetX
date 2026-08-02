@@ -74,3 +74,9 @@ Home shows the saved company name in place of the app label when one is configur
 **Why:** The user wants customer-facing screens and receipts to represent their business rather than the app product, while keeping driver operations grouped with fleet management.
 
 **How to apply:** Keep the Home company-name precedence and avoid adding product-brand fallbacks to invoice HTML or receipt share metadata; leave QR payment requests as a separate flow.
+
+Vercel must build the FleetX frontend artifact directly rather than running the workspace-wide build, which also compiles the unrelated API package and can surface its transitive `pngjs` type error.
+
+**Why:** The product is a Vite SPA that uses Supabase directly; the API artifact is not part of its Vercel static hosting path.
+
+**How to apply:** Keep Vercel's root-level configuration pointed at the fleet-manager build and output directory, with SPA rewrites to `index.html`.

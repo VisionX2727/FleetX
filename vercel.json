@@ -1,0 +1,12 @@
+{
+  "framework": "vite",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "PORT=23693 BASE_PATH=/ pnpm --filter @workspace/fleet-manager run build",
+  "outputDirectory": "artifacts/fleet-manager/dist/public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
