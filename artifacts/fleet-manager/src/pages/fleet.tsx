@@ -3,6 +3,7 @@ import { useStore, Vehicle, VehicleDay } from "@/lib/store";
 import { useState } from "react";
 import { Plus, Truck, Pen, Trash2, Wrench, CheckCircle2, CirclePause, CalendarDays, Clock3, Fuel, IndianRupee, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Link } from "wouter";
 
 const emptyVehicle: Partial<Vehicle> = {
   name: "", type: "JCB", regNumber: "", status: "Active", driverName: "", driverPhone: "",
@@ -78,7 +79,12 @@ export default function Fleet() {
           <h1>Fleet</h1>
           <p>{state.vehicles.length} vehicles</p>
         </div>
-        <button type="button" className="fm-icon-button fm-primary-icon" onClick={openAdd} aria-label="Add vehicle"><Plus size={26} /></button>
+        <div className="flex items-center gap-2">
+          <Link href="/drivers" className="fm-action-button fm-action-primary flex items-center gap-1.5" aria-label="Open drivers">
+            <Truck size={16} /> Drivers
+          </Link>
+          <button type="button" className="fm-icon-button fm-primary-icon" onClick={openAdd} aria-label="Add vehicle"><Plus size={26} /></button>
+        </div>
       </header>
 
       <div className="fm-filter-row">

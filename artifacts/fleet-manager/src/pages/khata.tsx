@@ -114,8 +114,8 @@ export default function Khata() {
       invoiceId: `RC-${today()}-${customer.phone.replace(/\D/g, "").slice(-4) || customer.id.slice(-4).toUpperCase()}`,
       issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
       issuedTime: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-      businessName: state.settings.businessName || "FleetX",
-      companyName: state.settings.companyName || state.settings.businessName || "FleetX",
+      businessName: "",
+      companyName: state.settings.companyName || "",
       ownerName: state.settings.ownerName || "",
       phone: state.settings.phone || "",
       email: state.settings.email || "",
@@ -188,7 +188,7 @@ export default function Khata() {
     const file = new File([await createInvoicePdf(getInvoiceData(customer))], fileName, { type: "application/pdf" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
-        await navigator.share({ title: `${state.settings.businessName} receipt`, text: `Receipt for ${customer.name}`, files: [file] });
+        await navigator.share({ title: "Receipt", text: `Receipt for ${customer.name}`, files: [file] });
         return;
       } catch (error) {
         if ((error as DOMException)?.name === "AbortError") return;

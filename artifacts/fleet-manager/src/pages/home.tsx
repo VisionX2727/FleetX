@@ -20,7 +20,7 @@ export default function Home() {
            {state.settings.logoUrl ? <img src={state.settings.logoUrl} alt="Business logo" /> : <div className="fm-home-logo"><UserCircle size={30} /></div>}
           <div>
             <div className="fm-home-greeting">{new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}</div>
-            <div className="fm-home-title">{state.settings.businessName || "FleetX"}</div>
+            <div className="fm-home-title">{state.settings.companyName || state.settings.businessName || "FleetX"}</div>
           </div>
         </div>
         <div className="fm-home-header-actions">
@@ -46,7 +46,6 @@ export default function Home() {
           <div className="fm-card p-4">
             {state.vehicles.length === 0 ? <div className="fm-empty-state min-h-32"><Truck size={40} /><p>No vehicles. Tap to add in Fleet.</p></div> : <div className="grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl font-black text-emerald-400">{active}</strong><span className="text-xs text-muted-foreground">Active</span></div><div><strong className="block text-2xl font-black text-amber-300">{idle}</strong><span className="text-xs text-muted-foreground">Idle</span></div><div><strong className="block text-2xl font-black text-rose-300">{maintenance}</strong><span className="text-xs text-muted-foreground">Maintenance</span></div></div>}
           </div>
-          <Link href="/drivers" className="fm-driver-shortcut">Driver</Link>
         </section>
 
         <section>

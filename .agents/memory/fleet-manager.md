@@ -68,3 +68,9 @@ FleetX is the user-facing app brand, with the supplied FleetX artwork used as th
 **Why:** The user explicitly renamed the app from Fleet Manager to FleetX and provided the splash artwork as the visual source of truth.
 
 **How to apply:** Keep FleetX in visible app metadata, login/loading UI, and default-brand fallbacks; preserve any user-entered business/company name separately.
+
+Home shows the saved company name in place of the app label when one is configured, while receipts contain only user/business receipt details and never the FleetX app brand. Driver management is accessed from Fleet.
+
+**Why:** The user wants customer-facing screens and receipts to represent their business rather than the app product, while keeping driver operations grouped with fleet management.
+
+**How to apply:** Keep the Home company-name precedence and avoid adding product-brand fallbacks to invoice HTML or receipt share metadata; leave QR payment requests as a separate flow.
