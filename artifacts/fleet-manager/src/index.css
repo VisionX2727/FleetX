@@ -125,11 +125,11 @@
 }
 
 @layer components {
-  .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; max-width: 430px; margin: 0 auto; }
+  .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; max-width: 430px; margin: 0 auto; font-size: 0.96rem; }
   .fm-main-content { @apply min-h-[calc(100dvh-68px)] overflow-x-hidden pb-20; }
   .fm-page-header { @apply bg-[#1b2d3c] border-b border-border px-5 py-4 flex items-center justify-between; }
-  .fm-page-header h1 { @apply text-[27px] font-black tracking-tight; }
-  .fm-page-header p { @apply text-sm text-muted-foreground mt-1; }
+  .fm-page-header h1 { @apply text-[25px] font-black tracking-tight; }
+  .fm-page-header p { @apply text-[13px] text-muted-foreground mt-1; }
   .fm-page-content { @apply px-5 py-5 pb-24; }
   .fm-filter-row { @apply flex gap-2 overflow-x-auto px-4 py-4 border-b border-border bg-[#1b2d3c]; scrollbar-width: none; }
   .fm-filter-row::-webkit-scrollbar { display: none; }
@@ -198,11 +198,12 @@
   .fm-overview-stat strong { @apply block text-xl font-black; }
   .fm-overview-stat span { @apply mt-1 block text-xs text-muted-foreground; }
   .fm-section-heading { @apply mb-3 flex items-center justify-between; }
-  .fm-section-heading h2 { @apply text-base font-black uppercase tracking-wider; }
+  .fm-section-heading h2 { @apply text-[15px] font-black uppercase tracking-wider; }
   .fm-section-heading a { @apply text-xs font-black text-primary; }
   .fm-quick-grid { @apply grid grid-cols-2 gap-3; }
-  .fm-quick-action { @apply flex min-h-36 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center text-sm font-black transition active:scale-95; }
+  .fm-quick-action { @apply flex min-h-32 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center text-[13px] font-black transition active:scale-95; }
   .fm-quick-action svg { @apply text-primary; }
+  .fm-driver-shortcut { @apply mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-xs font-black text-primary-foreground shadow-md transition active:scale-95; }
   .fm-ring { @apply relative flex h-40 w-40 items-center justify-center rounded-full; }
   .fm-ring::before { content: ""; @apply absolute inset-3 rounded-full bg-card; }
   .fm-ring-content { @apply relative z-10 text-center; }

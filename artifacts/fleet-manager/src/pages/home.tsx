@@ -1,7 +1,7 @@
 import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
-import { ArrowDownRight, BarChart3, ClipboardList, Droplet, FileText, Plus, Settings2, Truck, Wrench, Calculator, Settings, UserCircle } from "lucide-react";
+import { ArrowDownRight, BarChart3, ClipboardList, Droplet, FileText, Plus, Truck, Wrench, Calculator, Settings, UserCircle } from "lucide-react";
 
 export default function Home() {
   const { state } = useStore();
@@ -42,10 +42,11 @@ export default function Home() {
         </section>
 
         <section>
-           <div className="fm-section-heading"><h2>Live Fleet Status</h2><Link href="/drivers">Driver</Link></div>
+           <div className="fm-section-heading"><h2>Live Fleet Status</h2></div>
           <div className="fm-card p-4">
             {state.vehicles.length === 0 ? <div className="fm-empty-state min-h-32"><Truck size={40} /><p>No vehicles. Tap to add in Fleet.</p></div> : <div className="grid grid-cols-3 gap-2 text-center"><div><strong className="block text-2xl font-black text-emerald-400">{active}</strong><span className="text-xs text-muted-foreground">Active</span></div><div><strong className="block text-2xl font-black text-amber-300">{idle}</strong><span className="text-xs text-muted-foreground">Idle</span></div><div><strong className="block text-2xl font-black text-rose-300">{maintenance}</strong><span className="text-xs text-muted-foreground">Maintenance</span></div></div>}
           </div>
+          <Link href="/drivers" className="fm-driver-shortcut">Driver</Link>
         </section>
 
         <section>
