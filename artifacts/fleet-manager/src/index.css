@@ -125,7 +125,7 @@
 }
 
 @layer components {
-  .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; max-width: 430px; margin: 0 auto; font-size: 0.96rem; }
+  .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; margin: 0 auto; font-size: 0.96rem; }
   .fm-main-content { @apply min-h-[calc(100dvh-68px)] overflow-x-hidden pb-20; }
   .fm-page-header { @apply bg-[#1b2d3c] border-b border-border px-5 py-4 flex items-center justify-between; }
   .fm-page-header h1 { @apply text-[25px] font-black tracking-tight; }
@@ -209,7 +209,7 @@
   .fm-ring-content { @apply relative z-10 text-center; }
   .fm-ring-content strong { @apply block text-2xl font-black; }
   .fm-ring-content span { @apply text-xs text-muted-foreground; }
-  .fm-bottom-nav { @apply fixed bottom-0 z-40 flex h-[68px] items-start justify-around border-t border-border bg-[#0e1923] px-1 pt-2 pb-[env(safe-area-inset-bottom)]; width: min(100%, 430px); left: 50%; transform: translateX(-50%); }
+  .fm-bottom-nav { @apply fixed bottom-0 z-40 flex h-[68px] items-start justify-around border-t border-border bg-[#0e1923] px-1 pt-2 pb-[env(safe-area-inset-bottom)]; width: 100%; left: 50%; transform: translateX(-50%); }
   .fm-bottom-item { @apply flex w-14 flex-col items-center gap-1 text-[11px] font-medium text-muted-foreground transition; }
   .fm-bottom-item svg { @apply text-muted-foreground; }
   .fm-bottom-item.is-active { @apply text-primary; }
@@ -245,4 +245,44 @@
   .fm-driver-empty svg { @apply text-muted-foreground/70; }
   .fm-driver-empty h3 { @apply text-2xl font-black text-foreground; }
   .fm-driver-empty p { @apply max-w-[320px] text-lg; }
+}
+
+@media (min-width: 768px) {
+  body {
+    background: hsl(var(--background));
+  }
+
+  .fm-main-content {
+    min-height: calc(100dvh - 84px);
+    padding-bottom: 96px;
+  }
+
+  .fm-page-content {
+    width: min(100%, 1180px);
+    margin-inline: auto;
+    padding-inline: 32px;
+  }
+
+  .fm-page-header,
+  .fm-home-header {
+    padding-inline: max(32px, calc((100vw - 1180px) / 2 + 32px));
+  }
+
+  .fm-filter-row {
+    padding-inline: max(32px, calc((100vw - 1180px) / 2 + 32px));
+  }
+
+  .fm-bottom-nav {
+    width: min(720px, calc(100% - 48px));
+    bottom: 16px;
+    height: 68px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 22px;
+    box-shadow: 0 18px 45px rgb(0 0 0 / 28%);
+  }
+
+  .fm-fab {
+    right: max(32px, calc((100vw - 1180px) / 2 + 32px));
+    bottom: 104px;
+  }
 }

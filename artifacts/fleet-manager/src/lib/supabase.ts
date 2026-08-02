@@ -21,6 +21,8 @@ const supabasePublishableKey =
   injectedKey ||
   "placeholder-publishable-key";
 
+export const supabaseAuthStorageKey = "fleet-manager-auth";
+
 export const supabaseConfigured =
   supabaseUrl !== "https://placeholder.supabase.co" &&
   supabasePublishableKey !== "placeholder-publishable-key";
@@ -32,7 +34,13 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    // The callback is exchanged explicitly in AuthProvider. Keeping URL
+    // detection off avoids a race between Supabase's auto-initializer and the
+    // React auth gate when returning from Google.
+    detectSessionInUrl: false,
     flowType: "pkce",
+    // Use an app-specific namespace so stale auth state from an older flow
+    // cannot be mistaken for the current Google login attempt.
+    storageKey: supabaseAuthStorageKey,
   },
 });

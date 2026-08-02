@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { supabase, supabaseAuthStorageKey, supabaseConfigured } from "@/lib/supabase";
 
 type AuthContextValue = {
   user: User | null;
@@ -18,6 +18,18 @@ function getCallbackError() {
   const queryError = new URLSearchParams(window.location.search).get("error_description");
   const hashError = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description");
   return queryError || hashError;
+}
+
+function formatAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  if (normalized.includes("oauth state") || normalized.includes("flow_state")) {
+    return "Google sign-in expired before it returned to the app. Please choose your Google account again.";
+  }
+  if (normalized.includes("code verifier") || normalized.includes("pkce")) {
+    return "This Google sign-in attempt could not be verified. Please choose your Google account again.";
+  }
+  return message;
 }
 
 function clearOAuthCallbackParams() {
@@ -46,6 +58,22 @@ function clearOAuthCallbackParams() {
   window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
 }
 
+function clearPendingPkceVerifiers() {
+  if (typeof window === "undefined") return;
+  const keysToRemove: string[] = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (
+      key === `${supabaseAuthStorageKey}-code-verifier` ||
+      key === `${supabaseAuthStorageKey}-flows-code-verifier` ||
+      key?.startsWith(`${supabaseAuthStorageKey}-flow-`)
+    ) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+}
+
 function getRedirectUrl() {
   const basePath = import.meta.env.BASE_URL || "/";
   return new URL(basePath, window.location.origin).toString();
@@ -64,33 +92,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const callbackError = getCallbackError();
-    if (callbackError) {
-      setAuthError(decodeURIComponent(callbackError.replace(/\+/g, " ")));
-      clearOAuthCallbackParams();
-    }
-
     let mounted = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!mounted) return;
-      if (error) {
-        setAuthError(
-          error.message.toLowerCase().includes("oauth state") || error.message.toLowerCase().includes("flow_state")
-            ? "Google sign-in expired before it returned to the app. Please tap Continue with Google again."
-            : error.message,
-        );
-        clearOAuthCallbackParams();
-      }
-      setSession(data.session);
-      setLoading(false);
-    });
-
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
       setSigningIn(false);
       if (event === "SIGNED_OUT") setAuthError(null);
     });
+
+    const finishAuthInitialization = async () => {
+      const callbackError = getCallbackError();
+      if (callbackError) {
+        setAuthError(decodeURIComponent(callbackError.replace(/\+/g, " ")));
+        clearOAuthCallbackParams();
+      }
+
+      try {
+        const code = new URL(window.location.href).searchParams.get("code");
+        if (code && !callbackError) {
+          // Exchange exactly once, after the auth listener is registered. This
+          // consumes the PKCE verifier created for this browser login attempt.
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          if (mounted) setSession(data.session);
+          clearOAuthCallbackParams();
+        }
+
+        const { data, error } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (error) throw error;
+        setSession(data.session);
+      } catch (error) {
+        if (!mounted) return;
+        setAuthError(formatAuthError(error));
+        clearOAuthCallbackParams();
+        setSession(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void finishAuthInitialization();
 
     return () => {
       mounted = false;
@@ -112,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
       setSigningIn(true);
       clearOAuthCallbackParams();
+      clearPendingPkceVerifiers();
       const redirectTo = getRedirectUrl();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -131,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // A local logout clears this browser's Supabase session and PKCE
       // verifier without revoking other sessions for the same user.
       const { error } = await supabase.auth.signOut({ scope: "local" });
+      clearPendingPkceVerifiers();
       return { error: error ? new Error(error.message) : null };
     },
   }), [session, loading, authError, signingIn]);

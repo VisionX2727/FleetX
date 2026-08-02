@@ -57,8 +57,8 @@ Notes are account-scoped local-first records with automatic creation dates and e
 
 **How to apply:** Keep notes independent from vehicles, customers, and receipts unless a future request explicitly links them.
 
-Supabase Google sign-in uses browser PKCE with account selection, local-only logout, and callback URL cleanup; workspace data remains keyed by the Supabase auth user ID.
+Supabase Google sign-in uses browser PKCE with explicit callback exchange, account selection, local-only logout, and callback cleanup; workspace data remains keyed by auth user ID.
 
-**Why:** Switching Google accounts in one browser can otherwise reuse a stale OAuth callback/verifier and produce a Supabase flow-state error before a session reaches the app.
+**Why:** Switching Google accounts in one browser can otherwise reuse stale callback/verifier state, or let automatic URL detection race the auth gate, producing a Supabase flow-state error before a session reaches the app.
 
-**How to apply:** Preserve `flowType: "pkce"`, `prompt: "select_account"`, `signOut({ scope: "local" })`, and the current-origin/base-path redirect when changing authentication code. Redirect URLs must still be allow-listed in Supabase for every domain used.
+**How to apply:** Preserve explicit `exchangeCodeForSession`, `flowType: "pkce"`, app-specific auth storage, `prompt: "select_account"`, `signOut({ scope: "local" })`, and the current-origin/base-path redirect. Redirect URLs must still be allow-listed in Supabase for every domain used.
