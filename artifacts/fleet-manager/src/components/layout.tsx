@@ -6,13 +6,21 @@ import {
   BookOpen, 
   BarChart3,
   Calculator,
-  Settings as SettingsIcon,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
+
+function detectMobileDevice() {
+  if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+
+  const mobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+  // iPadOS can identify itself as macOS Safari, so preserve its mobile
+  // behavior without treating touchscreen Windows laptops as phones.
+  const ipadOs = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return mobileUserAgent || ipadOs;
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { state } = useStore();
+  const mobileDevice = detectMobileDevice();
 
   const navItems = [
     { path: "/", icon: Home, label: "Home" },
@@ -25,7 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const hideBottomNav = location === "/settings" || location === "/drivers";
 
   return (
-    <div className="fm-app-shell">
+    <div className="fm-app-shell" data-device={mobileDevice ? "mobile" : "desktop"}>
       <main className="fm-main-content">
         {children}
       </main>

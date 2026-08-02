@@ -86,3 +86,15 @@ Vercel can use either the repository root or `artifacts/fleet-manager` as its Ro
 **Why:** Vercel reports a successful build but fails afterward when it searches the default `public` folder relative to a different project root.
 
 **How to apply:** Prefer `artifacts/fleet-manager` as Root Directory with the artifact-level `vercel.json`, or use the repository root with the root-level config; do not mix one root with the other root's output path.
+
+Responsive mode uses both viewport width and device identity, so phones that request a browser “Desktop site” still receive the compact mobile shell while actual desktop browsers receive the wide layout.
+
+**Why:** Mobile browsers can report a desktop-sized viewport when desktop-site mode is enabled, bypassing width-only media queries.
+
+**How to apply:** Preserve the device marker on the app shell and the mobile override rules when changing the layout breakpoints.
+
+The supplied square FleetX logo is reserved for the pre-login loading splash and Google sign-in page; authenticated workspace screens continue using the app shell and user-configured business logo separately.
+
+**Why:** The user wants stronger product branding before authentication without replacing the business identity inside the fleet workspace.
+
+**How to apply:** Keep the logo asset limited to loading and sign-in surfaces unless the user explicitly requests it for an authenticated screen.

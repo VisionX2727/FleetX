@@ -1,5 +1,6 @@
 import { useAuth } from "@/lib/auth";
-import { LogIn, ShieldCheck, Truck } from "lucide-react";
+import { LogIn, ShieldCheck } from "lucide-react";
+import fleetXLogo from "@assets/FleetX_1785676635299.jpeg";
 
 export default function Login() {
   const { signInWithGoogle, signingIn, authError } = useAuth();
@@ -8,9 +9,7 @@ export default function Login() {
     <main className="min-h-[100dvh] bg-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md flex flex-col gap-8">
         <div className="text-center">
-          <div className="w-20 h-20 mx-auto bg-card border border-border rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-black/20">
-            <Truck className="text-primary" size={40} />
-          </div>
+          <img src={fleetXLogo} alt="FleetX logo" className="fm-login-logo" />
            <h1 className="text-3xl font-black tracking-tight text-foreground">FleetX</h1>
           <p className="text-muted-foreground mt-2 font-medium">Run your vehicles, work logs, drivers and accounts from one place.</p>
         </div>

@@ -126,10 +126,31 @@
 
 @layer components {
   .fm-splash-screen {
-    @apply min-h-[100dvh] w-full overflow-hidden bg-[#070d1c];
+    @apply flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-hidden bg-[#070d1c] px-6;
   }
-  .fm-splash-screen img {
-    @apply block h-[100dvh] w-full object-contain;
+  .fm-splash-logo-wrap {
+    @apply flex h-56 w-56 items-center justify-center overflow-hidden rounded-[32px] border border-white/10 bg-black shadow-2xl shadow-black/40;
+  }
+  .fm-splash-logo-wrap img {
+    @apply block h-full w-full object-cover;
+  }
+  .fm-splash-loading-line {
+    @apply mt-10 h-1 w-40 overflow-hidden rounded-full bg-white/10;
+  }
+  .fm-splash-loading-line::after {
+    content: "";
+    @apply block h-full w-1/2 rounded-full bg-primary;
+    animation: fm-loading-slide 1.4s ease-in-out infinite;
+  }
+  .fm-splash-loading-label {
+    @apply mt-3 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45;
+  }
+  .fm-login-logo {
+    @apply mx-auto mb-6 block h-24 w-24 rounded-3xl border border-white/10 bg-black object-cover shadow-lg shadow-black/20;
+  }
+  @keyframes fm-loading-slide {
+    0% { transform: translateX(-100%); }
+    50%, 100% { transform: translateX(200%); }
   }
   .fm-app-shell { @apply min-h-[100dvh] w-full bg-background text-foreground; margin: 0 auto; font-size: 0.96rem; }
   .fm-main-content { @apply min-h-[calc(100dvh-68px)] overflow-x-hidden pb-20; }
@@ -290,5 +311,45 @@
   .fm-fab {
     right: max(32px, calc((100vw - 1180px) / 2 + 32px));
     bottom: 104px;
+  }
+}
+
+/* Phones can request "Desktop site", which makes the viewport appear wide
+   even though the device is still a touch-first mobile device. Keep the
+   compact shell in that case instead of relying on viewport width alone. */
+@media (min-width: 768px) {
+  .fm-app-shell[data-device="mobile"] .fm-main-content {
+    min-height: calc(100dvh - 68px);
+    padding-bottom: 80px;
+  }
+
+  .fm-app-shell[data-device="mobile"] .fm-page-content {
+    width: auto;
+    margin-inline: 0;
+    padding-inline: 1.25rem;
+  }
+
+  .fm-app-shell[data-device="mobile"] .fm-page-header,
+  .fm-app-shell[data-device="mobile"] .fm-home-header {
+    padding-inline: 1.25rem;
+  }
+
+  .fm-app-shell[data-device="mobile"] .fm-filter-row {
+    padding-inline: 1rem;
+  }
+
+  .fm-app-shell[data-device="mobile"] .fm-bottom-nav {
+    width: 100%;
+    left: 50%;
+    bottom: 0;
+    height: 68px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .fm-app-shell[data-device="mobile"] .fm-fab {
+    right: 1.25rem;
+    bottom: 5rem;
   }
 }

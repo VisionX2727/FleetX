@@ -17,7 +17,7 @@ import Calculator from '@/pages/calculator';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
 import Notes from '@/pages/notes';
-import splashImage from '@assets/file_000000003f5082078eac895695d82a2a_1785659309338.png';
+import splashLogo from '@assets/FleetX_1785676635299.jpeg';
 
 const queryClient = new QueryClient();
 
@@ -58,7 +58,11 @@ function AuthenticatedShell() {
   if (loading) {
     return (
       <main className="fm-splash-screen" aria-label="FleetX loading">
-        <img src={splashImage} alt="FleetX loading" />
+        <div className="fm-splash-logo-wrap">
+          <img src={splashLogo} alt="FleetX logo" />
+        </div>
+        <div className="fm-splash-loading-line" aria-hidden="true" />
+        <span className="fm-splash-loading-label">Loading...</span>
       </main>
     );
   }
