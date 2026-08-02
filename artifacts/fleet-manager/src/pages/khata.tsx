@@ -108,6 +108,8 @@ export default function Khata() {
     const subtotal = getCustomerSubtotal(customer.id);
     const gstAmount = getCustomerGst(customer);
     const total = subtotal + gstAmount;
+    const paidAmount = getReceived(customer.id);
+    const balanceDue = Math.max(0, total - paidAmount);
     return {
       invoiceId: `RC-${today()}-${customer.phone.replace(/\D/g, "").slice(-4) || customer.id.slice(-4).toUpperCase()}`,
       issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
@@ -155,7 +157,8 @@ export default function Khata() {
       gstPercentage: state.settings.gstPercentage || 0,
       gstAmount,
       addGst: Boolean(customer.addGst && state.settings.gstPercentage),
-      balanceDue: getCustomerBalance(customer),
+      paidAmount,
+      balanceDue,
       status: customer.paymentStatus === "Paid" ? "PAID" : customer.paymentStatus === "Delay" ? "DELAY" : "PENDING",
       paymentDate: payments[0]?.date,
       paymentReference: payments[0]?.description,
@@ -234,7 +237,7 @@ export default function Khata() {
     const charges = getCustomerCharges(selected.id);
     const payments = getCustomerPayments(selected.id);
     const subtotal = getCustomerSubtotal(selected.id);
-    const balance = getCustomerBalance(selected);
+    const balance = Math.max(0, getCustomerBalance(selected));
     const paid = selected.paymentStatus === "Paid";
     return (
       <Layout>
@@ -248,12 +251,12 @@ export default function Khata() {
         <div className="px-5 py-5 pb-24 space-y-4">
           <section className="fm-card p-4">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div><div className="text-xl font-black text-primary">₹{(subtotal + getCustomerGst(selected)).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div></div>
-              <div><div className="text-xl font-black text-emerald-400">₹{getReceived(selected.id).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Received</div></div>
-              <div><div className="text-xl font-black text-rose-400">₹{balance.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Outstanding</div></div>
+              <div><div className="break-all text-lg font-black leading-tight text-primary">₹{(subtotal + getCustomerGst(selected)).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div></div>
+              <div><div className="break-all text-lg font-black leading-tight text-emerald-400">₹{getReceived(selected.id).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Received</div></div>
+              <div><div className="break-all text-lg font-black leading-tight text-rose-400">₹{balance.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Outstanding</div></div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
+               <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
               <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: selected.paymentStatus === "Delay" ? undefined : "Delay", delayStartDate: selected.paymentStatus === "Delay" ? undefined : today(), delayEndDate: selected.paymentStatus === "Delay" ? undefined : today() } })} className={`rounded-2xl p-3 font-bold ${selected.paymentStatus === "Delay" ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
             </div>
           </section>
@@ -360,12 +363,12 @@ export default function Khata() {
           visibleCustomers.map((customer) => {
             const total = getCustomerSubtotal(customer.id) + getCustomerGst(customer);
              return <div key={customer.id} onClick={() => { setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full cursor-pointer rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
-              <div className="flex items-center gap-4"><div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#454545] text-3xl font-black text-primary">{customer.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0 flex-1"><h3 className="text-xl font-black">{customer.name}</h3><div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground"><Phone size={14} />{customer.phone}</div>{customer.address && <div className="text-sm text-muted-foreground">{customer.address}</div>}<div className="mt-1 text-sm text-muted-foreground">{getCustomerCharges(customer.id).length} work logs</div></div><div className="text-right"><div className="text-xl font-black text-primary">₹{total.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div><div className="mt-2 text-muted-foreground">›</div></div></div>
+              <div className="grid grid-cols-[4rem_minmax(0,1fr)_5.5rem] items-center gap-3"><div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#454545] text-3xl font-black text-primary">{customer.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0"><h3 className="break-words text-base font-black leading-tight">{customer.name}</h3><div className="mt-1 flex min-w-0 items-center gap-1 truncate text-sm text-muted-foreground"><Phone size={14} className="shrink-0" />{customer.phone}</div>{customer.address && <div className="truncate text-sm text-muted-foreground">{customer.address}</div>}<div className="mt-1 text-sm text-muted-foreground">{getCustomerCharges(customer.id).length} work logs</div></div><div className="min-w-0 text-right"><div className="break-all text-base font-black leading-tight text-primary">₹{total.toLocaleString("en-IN")}</div><div className="text-[11px] leading-tight text-muted-foreground">Total Work</div><div className="mt-2 text-muted-foreground">›</div></div></div>
                <div className="mt-3 grid grid-cols-2 gap-2">
                  <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer.id); setKhataTab("work"); }} className="rounded-xl bg-primary/15 p-2 text-sm font-bold text-primary">{customerSection === "completed" ? "Open history" : "Open Khata"}</button>
                  {customerSection === "completed"
-                   ? <button type="button" onClick={(event) => { event.stopPropagation(); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl bg-emerald-500 p-2 text-sm font-bold text-white">Active Customer</button>
-                    : <button type="button" onClick={(event) => { event.stopPropagation(); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl border border-amber-400/50 p-2 text-sm font-bold text-amber-300">Inactive Customer</button>}
+                    ? <button type="button" onClick={(event) => { event.stopPropagation(); navigator.vibrate?.(50); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl bg-emerald-500 p-2 text-sm font-bold text-white">Active Customer</button>
+                     : <button type="button" onClick={(event) => { event.stopPropagation(); navigator.vibrate?.(50); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl border border-amber-400/50 p-2 text-sm font-bold text-amber-300">Inactive Customer</button>}
                </div>
              </div>;
           })}

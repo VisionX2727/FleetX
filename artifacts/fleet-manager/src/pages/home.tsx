@@ -1,7 +1,7 @@
 import { useStore } from "@/lib/store";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
-import { ArrowDownRight, BarChart3, BookOpen, ClipboardList, Droplet, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings, UserCircle } from "lucide-react";
+import { ArrowDownRight, BarChart3, ClipboardList, Droplet, FileText, Plus, Settings2, Truck, Users, Wrench, Calculator, Settings, UserCircle } from "lucide-react";
 
 export default function Home() {
   const { state } = useStore();
@@ -55,7 +55,7 @@ export default function Home() {
             <Link href="/fuel?action=new" className="fm-quick-action"><Droplet size={27} /> Add Fuel</Link>
             <Link href="/fleet" className="fm-quick-action"><Wrench size={27} /> Maintenance</Link>
             <Link href="/analytics" className="fm-quick-action"><BarChart3 size={27} /> Reports</Link>
-            <Link href="/khata" className="fm-quick-action"><BookOpen size={27} /> Khata Book</Link>
+            <Link href="/notes" className="fm-quick-action"><FileText size={27} /> Notes</Link>
             <Link href="/drivers" className="fm-quick-action"><Users size={27} /> Drivers</Link>
           </div>
         </section>

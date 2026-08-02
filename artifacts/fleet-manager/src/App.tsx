@@ -16,6 +16,7 @@ import Drivers from '@/pages/drivers';
 import Calculator from '@/pages/calculator';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
+import Notes from '@/pages/notes';
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/drivers" component={Drivers} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/settings" component={Settings} />
+      <Route path="/notes" component={Notes} />
       <Route component={NotFound} />
     </Switch>
   );

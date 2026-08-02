@@ -36,6 +36,7 @@ export type InvoiceData = {
   lines: InvoiceLine[];
   payments?: InvoicePayment[];
   total: number;
+  paidAmount?: number;
   subtotal?: number;
   gstPercentage?: number;
   gstAmount?: number;
@@ -97,6 +98,8 @@ export function createInvoiceHtml(data: InvoiceData) {
       <td>Payment received: ${money(payment.amount)} via ${escapeHtml(payment.paymentMode || "Payment")}${payment.description ? ` • ${escapeHtml(payment.description)}` : ""}<span class="date">${escapeHtml(payment.date)}</span></td>
       <td>Received</td>
     </tr>`).join("");
+  const paidAmount = Math.max(0, data.paidAmount || 0);
+  const grandTotal = Math.max(0, data.total - paidAmount);
   const logo = data.logoUrl
     ? `<img class="logo" src="${data.logoUrl}" alt="Business logo" />`
     : `<div class="logo-fallback">${escapeHtml(data.companyName.slice(0, 2).toUpperCase())}</div>`;
@@ -108,8 +111,8 @@ export function createInvoiceHtml(data: InvoiceData) {
     <header class="brand">${logo}<div><div class="business">${escapeHtml(data.companyName)}</div><div class="subtitle">${escapeHtml(data.businessName || "SERVICE INVOICE & PROJECT REPORT")}</div><div class="address">${escapeHtml(data.address || "")}</div></div><div class="brand-contact">${data.phone ? `☎ ${escapeHtml(data.phone)}<br>` : ""}${data.email ? `✉ ${escapeHtml(data.email)}<br>` : ""}${data.address ? `⌖ ${escapeHtml(data.address)}` : ""}</div></header>
     <section class="box"><div class="meta"><span>INVOICE ID: ${escapeHtml(data.invoiceId)}</span><span>Date &amp; Time: ${escapeHtml(data.issuedAt)} ${escapeHtml(data.issuedTime)}</span></div><div class="meta-row"><b>Work Date Range:</b> ${escapeHtml(data.workStart)} to ${escapeHtml(data.workEnd)} <span style="float:right"><b>Service Location:</b> ${escapeHtml(data.serviceLocation || "—")}</span></div></section>
     <h2 class="section-title">CLIENT INFORMATION</h2><section class="box client-grid"><div class="label">Contact Person:</div><div>${escapeHtml(data.customerName)}</div><div class="label">Phone:</div><div>${escapeHtml(data.customerPhone || "—")}</div><div class="label">Billing Address:</div><div>${escapeHtml(data.customerCompany || data.customerAddress || "—")}</div><div></div><div>${escapeHtml(data.customerAddress || "—")}</div></section>
-    <h2 class="section-title">PAYMENT SUMMARY</h2><table class="summary"><thead><tr><th>Description</th><th>Amount (INR)</th></tr></thead><tbody>${rows || `<tr><td>No work entries</td><td class="amount">${money(0)}</td></tr>`}${paymentRows}<tr class="total"><td>Total Amount:</td><td>${money(data.subtotal ?? data.total)}</td></tr>${data.addGst && data.gstAmount ? `<tr><td>GST (${data.gstPercentage || 0}%):</td><td>${money(data.gstAmount)}</td></tr>` : ""}<tr class="grand"><td colspan="2">Grand Total: ${money(data.total)}</td></tr></tbody></table>
-    <div class="words"><b>Amount in Words:</b> ${escapeHtml(amountInWords(data.total))}</div>
+    <h2 class="section-title">PAYMENT SUMMARY</h2><table class="summary"><thead><tr><th>Description</th><th>Amount (INR)</th></tr></thead><tbody>${rows || `<tr><td>No work entries</td><td class="amount">${money(0)}</td></tr>`}${paymentRows}<tr class="total"><td>Total Amount:</td><td>${money(data.subtotal ?? data.total)}</td></tr>${data.addGst && data.gstAmount ? `<tr><td>GST (${data.gstPercentage || 0}%):</td><td>${money(data.gstAmount)}</td></tr>` : ""}${paidAmount > 0 ? `<tr class="payment-total"><td>Paid Amount:</td><td>-${money(paidAmount)}</td></tr>` : ""}<tr class="grand"><td colspan="2">Grand Total: ${money(grandTotal)}</td></tr></tbody></table>
+    <div class="words"><b>Amount in Words:</b> ${escapeHtml(amountInWords(grandTotal))}</div>
     <h2 class="section-title">PAYMENT DETAILS</h2><section class="payment"><div><ul><li>Invoice Issuing Date: ${escapeHtml(data.issuedAt)}</li><li>Payment Terms: 7 Days from Receipt</li><li>Payment Mode: ${escapeHtml(data.paymentMode || "—")}</li><li>Reference UPI: ${escapeHtml(data.paymentReference || data.upiId || "—")}</li><li>Status: <span class="status">${data.status}</span></li>${data.status === "DELAY" ? `<li>Delay Date Range: ${escapeHtml(data.delayStartDate || "—")} to ${escapeHtml(data.delayEndDate || "—")}</li>` : ""}<li>Balance Due: ${money(data.balanceDue)}</li><li>Date of Payment: ${escapeHtml(data.paymentDate || "—")}</li></ul></div><div class="sign"><div class="signature">${escapeHtml(data.ownerName || data.companyName)}</div><b>Authorized Signatory: ${escapeHtml(data.ownerName || data.companyName)}</b><br>Designation: Owner / Authorized Signatory</div></section>
     <footer class="footer">${escapeHtml(data.phone || "—")} &nbsp;•&nbsp; ${escapeHtml(data.email || "—")} &nbsp;•&nbsp; ${escapeHtml(data.bankName || "—")} &nbsp;•&nbsp; GSTIN: ${escapeHtml(data.gstNumber || "—")}</footer>
   </main></body></html>`;

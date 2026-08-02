@@ -24,6 +24,7 @@ timeoutMs = 20000
 [userenv.shared]
 SUPABASE_URL = "https://zkwdvtwkqxlowuebsvll.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_CQbbBejLaBNqM-8wnI1f4g_TLWuQuLf"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inprd2R2dHdrcXhsb3d1ZWJzdmxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1NzYyMTcsImV4cCI6MjEwMTE1MjIxN30.gZZ62JlpTdwrEkxT9mrEgPrG7gFJwQhpvuCj12NLYHU"
 
 [nix]
 channel = "stable-25_05"

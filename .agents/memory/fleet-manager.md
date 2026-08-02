@@ -49,4 +49,10 @@ The receipt and workspace export templates use a fixed standard-page canvas with
 
 **Why:** Long company, address, payment, and customer values can otherwise overlap or push sections into an unreadable PDF.
 
-**How to apply:** Preserve the fixed-page/wrapping approach when adding invoice fields or new export sections; keep payments descriptive and never subtract them from Grand Total.
+**How to apply:** Preserve the fixed-page/wrapping approach when adding invoice fields or new export sections. Show payment history descriptively, then show aggregate Paid Amount immediately above Grand Total; Grand Total is the remaining balance after payments.
+
+Notes are account-scoped local-first records with automatic creation dates and explicit add, edit, and delete actions; Home Quick Actions links to Notes instead of Khata.
+
+**Why:** The user needs a lightweight place for arbitrary fleet reminders without mixing notes into customer ledgers or work logs.
+
+**How to apply:** Keep notes independent from vehicles, customers, and receipts unless a future request explicitly links them.

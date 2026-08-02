@@ -13,6 +13,7 @@ export type LedgerEntry = { id: string; customerId: string; logId?: string; vehi
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
+export type FleetNote = { id: string; date: string; text: string; updatedAt?: string };
 export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
@@ -24,6 +25,7 @@ export type AppState = {
   fuelRecords: FuelRecord[];
   drivers: Driver[];
   driverPays: DriverPay[];
+  notes: FleetNote[];
   settings: Settings;
 };
 
@@ -38,6 +40,7 @@ const defaultState: AppState = {
   fuelRecords: [],
   drivers: [],
   driverPays: [],
+  notes: [],
   settings: defaultSettings,
 };
 
@@ -58,6 +61,7 @@ function normalizeState(value: Partial<AppState>): AppState {
     fuelRecords: value.fuelRecords || fresh.fuelRecords,
     drivers: value.drivers || fresh.drivers,
     driverPays: value.driverPays || fresh.driverPays,
+    notes: value.notes || fresh.notes,
     settings: { ...fresh.settings, ...(value.settings || {}) },
   };
 }
@@ -218,6 +222,14 @@ export function StoreProvider({
         // Driver Pay Actions
         case 'ADD_DRIVER_PAY':
           return { ...prev, driverPays: [...prev.driverPays, { id: `dp${Date.now()}`, ...action.payload }] };
+
+        // Notes Actions
+        case 'ADD_NOTE':
+          return { ...prev, notes: [...prev.notes, { id: createEntityId("n"), ...action.payload }] };
+        case 'UPDATE_NOTE':
+          return { ...prev, notes: prev.notes.map(note => note.id === action.payload.id ? { ...note, ...action.payload } : note) };
+        case 'DELETE_NOTE':
+          return { ...prev, notes: prev.notes.filter(note => note.id !== action.payload) };
           
         // Settings Actions
         case 'UPDATE_SETTINGS':
