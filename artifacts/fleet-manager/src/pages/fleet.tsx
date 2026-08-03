@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Link } from "wouter";
 
 const emptyVehicle: Partial<Vehicle> = {
-  name: "", type: "JCB", regNumber: "", status: "Active", driverName: "", driverPhone: "",
+  name: "", type: "JCB", regNumber: "", status: "Active",
   currentSite: "", hourlyRate: 0, engineHours: 0, insuranceExpiry: "", fitnessExpiry: "",
   pucExpiry: "", nextService: "", notes: "",
 };
@@ -104,6 +104,7 @@ export default function Fleet() {
           <div className="fm-stack">
             {visibleVehicles.map((vehicle) => {
               const latestDay = state.fleetDays.filter((day) => day.vehicleId === vehicle.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+              const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicle.id);
               return (
                 <article key={vehicle.id} className="fm-card fm-vehicle-card">
                   <div className="fm-vehicle-heading">
@@ -128,7 +129,7 @@ export default function Fleet() {
                   </div>
                   <div className="fm-vehicle-metrics">
                     <div><span>Site</span><strong>{vehicle.currentSite || "Not set"}</strong></div>
-                    <div><span>Driver</span><strong>{vehicle.driverName || "Not assigned"}</strong></div>
+                    <div><span>Driver</span><strong>{assignedDriver?.name || "Not assigned"}</strong></div>
                     <div><span>Today</span><strong>{latestDay?.hours || 0} hrs</strong></div>
                   </div>
                   <div className="fm-card-actions">
@@ -158,10 +159,6 @@ export default function Fleet() {
             </fieldset>
             <label>Vehicle Name *<input required value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., JCB 3DX" /></label>
             <label>Registration Number *<input required value={formData.regNumber || ""} onChange={(e) => setFormData({ ...formData, regNumber: e.target.value.toUpperCase() })} placeholder="MH 12 XX 1234" /></label>
-            <div className="fm-form-grid">
-              <label>Driver Name<input value={formData.driverName || ""} onChange={(e) => setFormData({ ...formData, driverName: e.target.value })} placeholder="Driver name" /></label>
-              <label>Driver Phone<input value={formData.driverPhone || ""} onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })} placeholder="Phone" /></label>
-            </div>
             <label>Current Site<input value={formData.currentSite || ""} onChange={(e) => setFormData({ ...formData, currentSite: e.target.value })} placeholder="Site name" /></label>
             <div className="fm-form-grid">
               <label>Hourly Rate (₹)<input type="number" min="0" value={formData.hourlyRate || ""} onChange={(e) => setFormData({ ...formData, hourlyRate: Number(e.target.value) })} placeholder="0" /></label>
@@ -207,6 +204,7 @@ export default function Fleet() {
             if (!vehicle) return null;
             const days = state.fleetDays.filter((day) => day.vehicleId === vehicle.id).sort((a, b) => b.date.localeCompare(a.date));
             const logs = state.logs.filter((log) => log.vehicleId === vehicle.id);
+            const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicle.id);
             const revenue = logs.reduce((sum, log) => sum + log.amount, 0) + days.reduce((sum, day) => sum + day.amount, 0);
             const fuelCost = state.fuelRecords.filter((fuel) => fuel.vehicleId === vehicle.id).reduce((sum, fuel) => sum + fuel.cost, 0);
             return (
@@ -219,7 +217,7 @@ export default function Fleet() {
                 <div className="fm-stack">
                   {days.length === 0 ? <p className="fm-muted">No daily entries yet.</p> : days.map((day) => <div className="fm-list-row" key={day.id}><div><strong>{day.date}</strong><small>{day.trips} trips • {day.hours} hours • {day.diesel} L diesel</small></div><div className="fm-list-value">₹{day.amount.toLocaleString("en-IN")}<span className={`fm-status ${statusClass(day.status)}`}>{day.status}</span></div></div>)}
                 </div>
-                <div className="fm-detail-fields"><div><span>Current Site</span><strong>{vehicle.currentSite || "—"}</strong></div><div><span>Assigned Driver</span><strong>{vehicle.driverName || "—"}</strong></div><div><span>Next Service</span><strong>{vehicle.nextService || "—"}</strong></div></div>
+                 <div className="fm-detail-fields"><div><span>Current Site</span><strong>{vehicle.currentSite || "—"}</strong></div><div><span>Assigned Driver</span><strong>{assignedDriver?.name || "—"}</strong></div><div><span>Next Service</span><strong>{vehicle.nextService || "—"}</strong></div></div>
               </>
             );
           })()}

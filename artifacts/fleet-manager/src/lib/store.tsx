@@ -162,9 +162,9 @@ export function StoreProvider({
       switch (action.type) {
         // Vehicle Actions
         case 'ADD_VEHICLE':
-          return { ...prev, vehicles: [...prev.vehicles, { id: `v${Date.now()}`, ...action.payload }] };
+          return { ...prev, vehicles: [...prev.vehicles, { id: `v${Date.now()}`, ...action.payload, driverName: undefined, driverPhone: undefined }] };
         case 'UPDATE_VEHICLE':
-          return { ...prev, vehicles: prev.vehicles.map(v => v.id === action.payload.id ? { ...v, ...action.payload } : v) };
+          return { ...prev, vehicles: prev.vehicles.map(v => v.id === action.payload.id ? { ...v, ...action.payload, driverName: undefined, driverPhone: undefined } : v) };
         case 'DELETE_VEHICLE':
           return { ...prev, vehicles: prev.vehicles.filter(v => v.id !== action.payload), fleetDays: prev.fleetDays.filter(day => day.vehicleId !== action.payload) };
 
@@ -194,6 +194,17 @@ export function StoreProvider({
           return { ...prev, customers: prev.customers.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c) };
         case 'TOGGLE_CUSTOMER_COMPLETE':
           return { ...prev, customers: prev.customers.map(c => c.id === action.payload ? { ...c, completed: !c.completed } : c) };
+        case 'DELETE_CUSTOMER': {
+          const customerId = action.payload;
+          const customerLedgerEntries = prev.ledgers.filter((entry) => entry.customerId === customerId);
+          const linkedLogIds = new Set(customerLedgerEntries.map((entry) => entry.logId).filter(Boolean));
+          return {
+            ...prev,
+            customers: prev.customers.filter((customer) => customer.id !== customerId),
+            ledgers: prev.ledgers.filter((entry) => entry.customerId !== customerId),
+            logs: prev.logs.filter((log) => log.customerId !== customerId && !linkedLogIds.has(log.id)),
+          };
+        }
         
         // Ledger Actions
         case 'ADD_LEDGER':
@@ -209,9 +220,25 @@ export function StoreProvider({
         
         // Driver Actions
         case 'ADD_DRIVER':
-          return { ...prev, drivers: [...prev.drivers, { id: `d${Date.now()}`, ...action.payload }] };
+          return {
+            ...prev,
+            drivers: [
+              ...prev.drivers
+                .map((driver) => action.payload.vehicleId && driver.vehicleId === action.payload.vehicleId ? { ...driver, vehicleId: undefined } : driver),
+              { id: `d${Date.now()}`, ...action.payload },
+            ],
+          };
         case 'UPDATE_DRIVER':
-          return { ...prev, drivers: prev.drivers.map(d => d.id === action.payload.id ? { ...d, ...action.payload } : d) };
+          return {
+            ...prev,
+            drivers: prev.drivers.map((driver) =>
+              driver.id !== action.payload.id && action.payload.vehicleId && driver.vehicleId === action.payload.vehicleId
+                ? { ...driver, vehicleId: undefined }
+                : driver.id === action.payload.id
+                  ? { ...driver, ...action.payload }
+                  : driver,
+            ),
+          };
         case 'DELETE_DRIVER':
           return {
             ...prev,

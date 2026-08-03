@@ -98,3 +98,15 @@ The supplied square FleetX logo is reserved for the pre-login loading splash and
 **Why:** The user wants stronger product branding before authentication without replacing the business identity inside the fleet workspace.
 
 **How to apply:** Keep the logo asset limited to loading and sign-in surfaces unless the user explicitly requests it for an authenticated screen.
+
+Driver assignment is managed only from the Drivers section; vehicle forms do not collect driver identity, and Fleet display resolves the assigned driver from the driver-to-vehicle relationship.
+
+**Why:** A driver should be registered once and assigned consistently rather than duplicated as editable text on each vehicle.
+
+**How to apply:** Preserve assignment uniqueness when adding or editing drivers, and derive vehicle driver labels from the assignment.
+
+Receipt PDF pagination must render the complete receipt canvas first, then crop and add each A4-sized slice as its own PDF page; scaling one tall image with negative offsets can leave shared/downloaded PDFs showing only the first page.
+
+**Why:** The receipt HTML can grow beyond one page as work logs and payments increase, and the share path uses the generated PDF rather than the print preview.
+
+**How to apply:** Keep the invoice sheet overflow visible for export and paginate from the full rendered canvas whenever receipt content can exceed one page.

@@ -60,6 +60,20 @@ export default function Khata() {
   const getReceived = (customerId: string) =>
     getCustomerPayments(customerId).reduce((sum, entry) => sum + entry.amount, 0);
 
+  const closeDetail = () => {
+    setSelectedCustomer(null);
+    setQrDataUrl("");
+    setInvoicePreview("");
+    setQrOpen(false);
+    setReceiptActionsOpen(false);
+  };
+
+  const deleteCustomer = (customer: Customer) => {
+    if (!window.confirm(`Delete ${customer.name} and all of its Khata work and payment records?`)) return;
+    dispatch({ type: "DELETE_CUSTOMER", payload: customer.id });
+    if (selectedCustomer === customer.id) closeDetail();
+  };
+
   const handleCustomerSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     dispatch({ type: "ADD_CUSTOMER", payload: customerData });
@@ -225,14 +239,6 @@ export default function Khata() {
     }
   };
 
-  const closeDetail = () => {
-    setSelectedCustomer(null);
-    setQrDataUrl("");
-    setInvoicePreview("");
-    setQrOpen(false);
-    setReceiptActionsOpen(false);
-  };
-
   if (selected) {
     const charges = getCustomerCharges(selected.id);
     const payments = getCustomerPayments(selected.id);
@@ -246,7 +252,10 @@ export default function Khata() {
             <ArrowLeft size={24} />
             <span><h1 className="!text-2xl">{selected.name}</h1><p>{selected.phone}</p></span>
           </button>
-          <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => void shareReceipt(selected)} aria-label="Share receipt"><Share2 size={20} /></button>
+          <div className="flex items-center gap-2">
+            <button type="button" className="fm-icon-button bg-rose-500/15 text-rose-300" onClick={() => deleteCustomer(selected)} aria-label={`Delete ${selected.name}`}><Trash2 size={19} /></button>
+            <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => void shareReceipt(selected)} aria-label="Share receipt"><Share2 size={20} /></button>
+          </div>
         </div>
         <div className="px-5 py-5 pb-24 space-y-4">
           <section className="fm-card p-4">
@@ -288,8 +297,11 @@ export default function Khata() {
             charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
               <div className="space-y-3">{charges.map((entry) => {
                 const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
+                const relatedLog = entry.logId ? state.logs.find((log) => log.id === entry.logId) : undefined;
+                const isTripBased = vehicle?.type === "Hywa" || vehicle?.type === "Tipper";
+                const measure = isTripBased ? `${relatedLog?.trips || 0} trips` : `${relatedLog?.hours || 0} hours`;
                 return <div key={entry.id} className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
-                  <div><div className="font-bold">{entry.description || "Work entry"}</div><div className="mt-1 text-xs text-muted-foreground">{entry.date} • {vehicle?.name || "Vehicle"}</div></div>
+                  <div><div className="font-bold">{entry.description || "Work entry"}</div><div className="mt-1 text-xs text-muted-foreground">{entry.date} • {vehicle?.name || "Vehicle"} • {measure}</div></div>
                   <div className="flex items-center gap-3"><span className="font-black text-primary">₹{getChargeAmount(entry, selected).toLocaleString("en-IN")}</span><button type="button" aria-label="Delete work entry" onClick={() => { if (window.confirm("Delete this Khata work entry?")) entry.logId ? dispatch({ type: "DELETE_LOG", payload: entry.logId }) : dispatch({ type: "DELETE_LEDGER", payload: entry.id }); }} className="text-rose-300"><Trash2 size={16} /></button></div>
                 </div>;
               })}</div>
@@ -364,11 +376,12 @@ export default function Khata() {
             const total = getCustomerSubtotal(customer.id) + getCustomerGst(customer);
              return <div key={customer.id} onClick={() => { setSelectedCustomer(customer.id); setKhataTab("work"); }} className="w-full cursor-pointer rounded-2xl border border-[#244a7a] bg-card p-4 text-left transition-colors active:bg-secondary">
               <div className="grid grid-cols-[4rem_minmax(0,1fr)_5.5rem] items-center gap-3"><div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#454545] text-3xl font-black text-primary">{customer.name.slice(0, 1).toUpperCase()}</div><div className="min-w-0"><h3 className="break-words text-base font-black leading-tight">{customer.name}</h3><div className="mt-1 flex min-w-0 items-center gap-1 truncate text-sm text-muted-foreground"><Phone size={14} className="shrink-0" />{customer.phone}</div>{customer.address && <div className="truncate text-sm text-muted-foreground">{customer.address}</div>}<div className="mt-1 text-sm text-muted-foreground">{getCustomerCharges(customer.id).length} work logs</div></div><div className="min-w-0 text-right"><div className="break-all text-base font-black leading-tight text-primary">₹{total.toLocaleString("en-IN")}</div><div className="text-[11px] leading-tight text-muted-foreground">Total Work</div><div className="mt-2 text-muted-foreground">›</div></div></div>
-               <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
                  <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedCustomer(customer.id); setKhataTab("work"); }} className="rounded-xl bg-primary/15 p-2 text-sm font-bold text-primary">{customerSection === "completed" ? "Open history" : "Open Khata"}</button>
                  {customerSection === "completed"
                     ? <button type="button" onClick={(event) => { event.stopPropagation(); navigator.vibrate?.(50); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl bg-emerald-500 p-2 text-sm font-bold text-white">Active Customer</button>
-                     : <button type="button" onClick={(event) => { event.stopPropagation(); navigator.vibrate?.(50); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl border border-amber-400/50 p-2 text-sm font-bold text-amber-300">Inactive Customer</button>}
+                      : <button type="button" onClick={(event) => { event.stopPropagation(); navigator.vibrate?.(50); dispatch({ type: "TOGGLE_CUSTOMER_COMPLETE", payload: customer.id }); }} className="rounded-xl border border-amber-400/50 p-2 text-sm font-bold text-amber-300">Inactive Customer</button>}
+                  <button type="button" onClick={(event) => { event.stopPropagation(); deleteCustomer(customer); }} className="flex items-center justify-center rounded-xl border border-rose-400/40 p-2 text-rose-300" aria-label={`Delete ${customer.name}`}><Trash2 size={18} /></button>
                </div>
              </div>;
           })}

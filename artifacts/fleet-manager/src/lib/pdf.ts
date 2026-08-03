@@ -27,22 +27,32 @@ export async function createHtmlPdf(html: string, width = 820): Promise<Blob> {
     const sheet = frame.contentDocument?.querySelector(".sheet") as HTMLElement | null;
     if (!body || !sheet) throw new Error("PDF content could not be rendered");
     await waitForImages(body);
-    const canvas = await html2canvas(sheet, { backgroundColor: "#ffffff", scale: Math.min(2, window.devicePixelRatio || 1.5), useCORS: true, logging: false });
+    const canvas = await html2canvas(sheet, {
+      backgroundColor: "#ffffff",
+      scale: Math.min(2, window.devicePixelRatio || 1.5),
+      useCORS: true,
+      logging: false,
+      windowWidth: width,
+      windowHeight: Math.max(sheet.scrollHeight, 1400),
+      scrollY: 0,
+    });
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imageWidth = pageWidth;
-    const imageHeight = (canvas.height * imageWidth) / canvas.width;
-    const image = canvas.toDataURL("image/jpeg", 0.94);
-    let remainingHeight = imageHeight;
-    let offset = 0;
-    pdf.addImage(image, "JPEG", 0, offset, imageWidth, imageHeight, undefined, "FAST");
-    remainingHeight -= pageHeight;
-    while (remainingHeight > 0) {
-      offset -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(image, "JPEG", 0, offset, imageWidth, imageHeight, undefined, "FAST");
-      remainingHeight -= pageHeight;
+    const pixelsPerPage = Math.max(1, Math.floor(canvas.width * (pageHeight / pageWidth)));
+    const pageCount = Math.ceil(canvas.height / pixelsPerPage);
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+      if (pageIndex > 0) pdf.addPage();
+      const sourceY = pageIndex * pixelsPerPage;
+      const sourceHeight = Math.min(pixelsPerPage, canvas.height - sourceY);
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sourceHeight;
+      const pageContext = pageCanvas.getContext("2d");
+      if (!pageContext) throw new Error("PDF page could not be rendered");
+      pageContext.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+      const imageHeight = (sourceHeight * pageWidth) / canvas.width;
+      pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.94), "JPEG", 0, 0, pageWidth, imageHeight, undefined, "FAST");
     }
     return pdf.output("blob");
   } finally {
