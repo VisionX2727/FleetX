@@ -110,3 +110,9 @@ Receipt PDF pagination must render the complete receipt canvas first, then crop 
 **Why:** The receipt HTML can grow beyond one page as work logs and payments increase, and the share path uses the generated PDF rather than the print preview.
 
 **How to apply:** Keep the invoice sheet overflow visible for export and paginate from the full rendered canvas whenever receipt content can exceed one page.
+
+In the planned owner/driver workspace, the driver sees the owner’s company logo and company name as read-only branding; the driver has no profile-picture option and cannot change the owner company name.
+
+**Why:** Driver identity and owner business identity must remain separate, while the owner’s branding should carry into the driver workspace.
+
+**How to apply:** Keep owner logo/name sourced from the linked owner profile, expose them read-only to drivers, and allow only driver-owned profile fields to be edited.
