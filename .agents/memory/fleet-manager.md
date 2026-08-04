@@ -134,3 +134,9 @@ The owner/driver workspace uses a server-side PostgreSQL boundary rather than re
 **Why:** Cross-account sharing cannot be secured by browser-local state, and invoice delivery needs an owner-controlled revoke path that drivers cannot delete.
 
 **How to apply:** Keep identity and vehicle-scope checks in the API even when the frontend already filters routes or records. Treat the owner workspace as the source of truth for shared vehicles, payment transitions, documents, and invoice visibility.
+
+Workspace JSON requests must allow document and logo data URLs; the API parser needs an explicit multi-megabyte limit and JSON error responses for parser failures.
+
+**Why:** Owner creation sends the locally saved workspace state before authentication completes, so optional base64 assets can exceed Express's default 100 KB limit and otherwise surface as a misleading generic client error.
+
+**How to apply:** Keep the body limit aligned with the supported document size, and preserve structured error handling so the client can show actionable messages for oversized workspace payloads.
