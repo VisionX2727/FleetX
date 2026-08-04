@@ -73,8 +73,11 @@ export function getWorkspace(token: string) {
   return request<WorkspaceResponse>("", token);
 }
 
-export function createOwnerWorkspace(token: string, state: Partial<AppState>) {
-  return request<WorkspaceResponse>("/owner", token, { method: "POST", body: JSON.stringify({ state }) });
+export function createOwnerWorkspace(token: string) {
+  // Initial role selection must stay small and reliable. The server creates a
+  // canonical empty workspace; the StoreProvider syncs the full state after
+  // the owner workspace is established.
+  return request<WorkspaceResponse>("/owner", token, { method: "POST", body: JSON.stringify({}) });
 }
 
 export function saveOwnerWorkspace(token: string, state: AppState) {

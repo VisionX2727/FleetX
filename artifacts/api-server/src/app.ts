@@ -36,11 +36,14 @@ app.use("/api", router);
 
 const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const isPayloadTooLarge = error?.type === "entity.too.large";
+  const isInvalidJson = error?.type === "entity.parse.failed";
   logger.error({ err: error, method: req.method, url: req.url }, "Request failed");
-  res.status(isPayloadTooLarge ? 413 : 500).json({
+  res.status(isPayloadTooLarge ? 413 : isInvalidJson ? 400 : 500).json({
     error: isPayloadTooLarge
       ? "Workspace data is too large. Remove an unused document or logo and try again."
-      : "The server could not complete that request.",
+      : isInvalidJson
+        ? "The workspace request body was invalid. Please try again."
+        : "The server could not complete that request.",
   });
 };
 

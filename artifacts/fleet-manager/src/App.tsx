@@ -88,6 +88,8 @@ function RoleSelection({
   const [driverJoinOpen, setDriverJoinOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
+  const [ownerBusy, setOwnerBusy] = useState(false);
+  const [driverBusy, setDriverBusy] = useState(false);
   const [profile, setProfile] = useState({
     name: '',
     phone: '',
@@ -99,9 +101,15 @@ function RoleSelection({
   const selectOwner = async () => {
     try {
       setError('');
-      onReady(await createOwnerWorkspace(accessToken, getLocalState(userId)));
+      setOwnerBusy(true);
+      const createdWorkspace = await createOwnerWorkspace(accessToken);
+      // Keep any records entered before Google sign-in, but only sync them
+      // after the server has established the canonical owner workspace.
+      onReady({ ...createdWorkspace, state: getLocalState(userId) });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create the owner workspace');
+    } finally {
+      setOwnerBusy(false);
     }
   };
 
@@ -109,10 +117,13 @@ function RoleSelection({
     event.preventDefault();
     try {
       setError('');
+      setDriverBusy(true);
       onReady(await joinOwnerWorkspace(accessToken, joinCode, profile));
       setDriverJoinOpen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not join the owner workspace');
+    } finally {
+      setDriverBusy(false);
     }
   };
 
@@ -129,9 +140,9 @@ function RoleSelection({
           <p className="mt-2 text-sm text-muted-foreground">Select how you use this account.</p>
         </div>
         <div className="grid gap-4">
-          <button type="button" onClick={() => void selectOwner()} className="rounded-2xl bg-primary p-5 text-left font-black text-primary-foreground">
+          <button type="button" onClick={() => void selectOwner()} disabled={ownerBusy} className="rounded-2xl bg-primary p-5 text-left font-black text-primary-foreground disabled:cursor-wait disabled:opacity-70">
             <span className="block text-xl">Owner</span>
-            <span className="mt-1 block text-sm font-medium opacity-80">Manage vehicles, customers, drivers, payments and reports.</span>
+            <span className="mt-1 block text-sm font-medium opacity-80">{ownerBusy ? 'Creating your secure workspace…' : 'Manage vehicles, customers, drivers, payments and reports.'}</span>
           </button>
           <button type="button" onClick={() => setDriverJoinOpen(true)} className="rounded-2xl border border-border bg-card p-5 text-left font-black">
             <span className="block text-xl">Driver</span>
@@ -172,13 +183,14 @@ function RoleSelection({
       <Dialog open={driverJoinOpen} onOpenChange={setDriverJoinOpen}>
         <DialogContent className="w-[90vw] max-w-md rounded-2xl">
           <DialogHeader><DialogTitle>Join as Driver</DialogTitle></DialogHeader>
-          <form onSubmit={joinDriver} className="space-y-4 pt-3">
+           <form onSubmit={joinDriver} className="space-y-4 pt-3">
             <p className="text-sm text-muted-foreground">Enter the owner code. You will choose your permitted vehicle after joining.</p>
             <input required value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Owner code" className="w-full rounded-xl bg-muted p-4 font-black tracking-[0.2em] outline-none" />
             <input required value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} placeholder="Your name" className="w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
             <input required type="tel" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} placeholder="Mobile number" className="w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
             <textarea value={profile.address} onChange={(event) => setProfile({ ...profile, address: event.target.value })} placeholder="Address (optional)" className="w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
-            <button type="submit" className="w-full rounded-xl bg-primary p-4 font-black text-primary-foreground">Join Owner Workspace</button>
+             {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive">{error}</p>}
+             <button type="submit" disabled={driverBusy} className="w-full rounded-xl bg-primary p-4 font-black text-primary-foreground disabled:cursor-wait disabled:opacity-70">{driverBusy ? 'Checking owner code…' : 'Join Owner Workspace'}</button>
           </form>
         </DialogContent>
       </Dialog>
