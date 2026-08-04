@@ -84,6 +84,7 @@ function RoleSelection({
   accessToken: string;
   onReady: (workspace: WorkspaceResponse) => void;
 }) {
+  const { signOut } = useAuth();
   const [driverJoinOpen, setDriverJoinOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
@@ -115,6 +116,10 @@ function RoleSelection({
     }
   };
 
+  const backToSignIn = async () => {
+    await signOut();
+  };
+
   return (
     <main className="min-h-[100dvh] bg-background px-5 py-10 text-foreground">
       <div className="mx-auto flex min-h-[80dvh] w-full max-w-md flex-col justify-center">
@@ -133,7 +138,36 @@ function RoleSelection({
             <span className="mt-1 block text-sm font-medium text-muted-foreground">Join an owner using their FleetX code.</span>
           </button>
         </div>
-        {error && <p className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+        {error && (
+          <div className="mt-4 space-y-3">
+            <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setError('')}
+                className="flex-1 rounded-xl border border-border bg-card p-3 text-sm font-bold"
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                onClick={() => void backToSignIn()}
+                className="flex-1 rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm font-bold text-primary"
+              >
+                Back to sign in
+              </button>
+            </div>
+          </div>
+        )}
+        {!error && (
+          <button
+            type="button"
+            onClick={() => void backToSignIn()}
+            className="mt-5 w-full rounded-xl border border-border bg-card/60 p-3 text-sm font-bold text-muted-foreground"
+          >
+            Back to sign in / switch account
+          </button>
+        )}
       </div>
       <Dialog open={driverJoinOpen} onOpenChange={setDriverJoinOpen}>
         <DialogContent className="w-[90vw] max-w-md rounded-2xl">
@@ -153,7 +187,7 @@ function RoleSelection({
 }
 
 function AuthenticatedShell() {
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, signOut } = useAuth();
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
@@ -174,7 +208,30 @@ function AuthenticatedShell() {
   if (loading) return <Splash />;
   if (!user || !session) return <Login />;
   if (workspaceLoading) return <Splash label="Preparing workspace..." />;
-  if (workspaceError) return <Splash label={workspaceError} />;
+  if (workspaceError) {
+    return (
+      <main className="fm-splash-screen px-6 text-center">
+        <div className="fm-splash-logo-wrap"><img src={splashLogo} alt="FleetX logo" /></div>
+        <p className="max-w-sm text-sm font-semibold text-destructive">{workspaceError}</p>
+        <div className="mt-4 flex w-full max-w-sm gap-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="flex-1 rounded-xl border border-border bg-card p-3 text-sm font-bold"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="flex-1 rounded-xl bg-primary p-3 text-sm font-bold text-primary-foreground"
+          >
+            Back to sign in
+          </button>
+        </div>
+      </main>
+    );
+  }
   if (!workspace) return <Splash label="Preparing workspace..." />;
   if (!workspace.role) {
     return <RoleSelection userId={user.id} accessToken={session.access_token} onReady={setWorkspace} />;

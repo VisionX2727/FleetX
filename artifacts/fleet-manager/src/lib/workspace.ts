@@ -40,17 +40,33 @@ function workspaceUrl(path = "") {
 }
 
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(workspaceUrl(path), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || "Workspace request failed");
-  return payload as T;
+  try {
+    const response = await fetch(workspaceUrl(path), {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers || {}),
+      },
+    });
+    const raw = await response.text();
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    } catch {
+      // Keep the HTTP status useful when a proxy or server returns HTML.
+    }
+    if (!response.ok) {
+      const serverMessage = typeof payload.error === "string" ? payload.error : "";
+      throw new Error(
+        serverMessage || `Workspace request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`,
+      );
+    }
+    return payload as T;
+  } catch (error) {
+    if (error instanceof Error && error.message !== "Failed to fetch") throw error;
+    throw new Error("FleetX could not reach the workspace server. Check your internet connection and try again.");
+  }
 }
 
 export function getWorkspace(token: string) {

@@ -140,3 +140,9 @@ Workspace JSON requests must allow document and logo data URLs; the API parser n
 **Why:** Owner creation sends the locally saved workspace state before authentication completes, so optional base64 assets can exceed Express's default 100 KB limit and otherwise surface as a misleading generic client error.
 
 **How to apply:** Keep the body limit aligned with the supported document size, and preserve structured error handling so the client can show actionable messages for oversized workspace payloads.
+
+The published FleetX URL can continue serving a previous static frontend bundle after local workflow fixes; production must be republished before phone users see client-side changes.
+
+**Why:** The API deployment was current while the production HTML referenced a stale frontend asset, so local verification and the live phone experience diverged.
+
+**How to apply:** When a user reports an old mobile UI after a frontend fix, compare the published asset hash with the current build and have the user publish the verified artifact before debugging the same stale client again.
