@@ -39,34 +39,53 @@ function workspaceUrl(path = "") {
   return `${base}api/workspace${path}`;
 }
 
+const productionApiOrigin = "https://fleet-manager--knightxvenom.replit.app";
+
+function workspaceUrls(path = "") {
+  const localUrl = workspaceUrl(path);
+  const fallbackUrl = `${productionApiOrigin}/api/workspace${path}`;
+  return localUrl === fallbackUrl ? [localUrl] : [localUrl, fallbackUrl];
+}
+
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  try {
-    const response = await fetch(workspaceUrl(path), {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(init?.headers || {}),
-      },
-    });
-    const raw = await response.text();
-    let payload: Record<string, unknown> = {};
+  let lastError: Error | null = null;
+  for (const url of workspaceUrls(path)) {
     try {
-      payload = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-    } catch {
-      // Keep the HTTP status useful when a proxy or server returns HTML.
-    }
-    if (!response.ok) {
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(init?.headers || {}),
+        },
+      });
+      const raw = await response.text();
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      } catch {
+        // Keep the HTTP status useful when a proxy or server returns HTML.
+      }
+      if (response.ok) return payload as T;
+
       const serverMessage = typeof payload.error === "string" ? payload.error : "";
-      throw new Error(
+      lastError = new Error(
         serverMessage || `Workspace request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ""})`,
       );
+
+      // A static host may answer POST /api with 404/405 instead of forwarding
+      // it. Retry the same authenticated request against the API artifact.
+      if (response.status !== 404 && response.status !== 405) throw lastError;
+    } catch (error) {
+      if (error instanceof Error) {
+        lastError = error;
+        if (!error.message.includes("(404") && !error.message.includes("(405") && error.message !== "Failed to fetch") {
+          throw error;
+        }
+      }
     }
-    return payload as T;
-  } catch (error) {
-    if (error instanceof Error && error.message !== "Failed to fetch") throw error;
-    throw new Error("FleetX could not reach the workspace server. Check your internet connection and try again.");
   }
+  throw lastError || new Error("FleetX could not reach the workspace server. Check your internet connection and try again.");
 }
 
 export function getWorkspace(token: string) {

@@ -146,3 +146,9 @@ The published FleetX URL can continue serving a previous static frontend bundle 
 **Why:** The API deployment was current while the production HTML referenced a stale frontend asset, so local verification and the live phone experience diverged.
 
 **How to apply:** When a user reports an old mobile UI after a frontend fix, compare the published asset hash with the current build and have the user publish the verified artifact before debugging the same stale client again.
+
+Workspace clients should retry authenticated API calls against the known production API origin when the hosting origin returns 404/405 for `/api` mutations.
+
+**Why:** Static frontend hosts can serve the SPA fallback for API paths or reject POST methods even though the Replit API service is healthy, causing both Owner and Driver actions to fail identically.
+
+**How to apply:** Keep the same-origin request first for normal deployments, then retry only 404/405 responses against the production API origin; do not hide genuine 401/403/404 business errors from the API.
