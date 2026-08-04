@@ -122,3 +122,9 @@ In the planned driver workspace, drivers may edit or delete their own work logs 
 **Why:** Drivers need to correct their own entries without gaining access to other drivers’ records, and the requested product credit is consistent across workspaces.
 
 **How to apply:** Enforce log ownership on edit/delete actions and use the latest “Mandar” wording if an earlier branding-credit value conflicts.
+
+Planned driver invite/access codes must be scoped to the permitted vehicle or vehicle set, and driver log permissions must enforce both vehicle scope and driver ownership.
+
+**Why:** A driver must not be able to work with another driver’s logs or use a vehicle outside the access granted by the owner/code.
+
+**How to apply:** Filter driver vehicle choices and log queries by code-granted vehicle access, then require the current driver identity for create, edit, delete, and payment-status mutations.
