@@ -6,7 +6,10 @@ import {
   BookOpen, 
   BarChart3,
   Calculator,
+  Droplet,
+  ReceiptText,
 } from "lucide-react";
+import { useRole } from "@/lib/role";
 
 function detectMobileDevice() {
   if (typeof navigator === "undefined" || typeof window === "undefined") return false;
@@ -21,15 +24,24 @@ function detectMobileDevice() {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const mobileDevice = detectMobileDevice();
+  const { role } = useRole();
 
-  const navItems = [
-    { path: "/", icon: Home, label: "Home" },
-    { path: "/fleet", icon: Truck, label: "Fleet" },
-    { path: "/logs", icon: ClipboardList, label: "Logs" },
-    { path: "/calculator", icon: Calculator, label: "Calc" },
-    { path: "/analytics", icon: BarChart3, label: "Analytics" },
-    { path: "/khata", icon: BookOpen, label: "Khata" },
-  ];
+  const navItems = role === "driver"
+    ? [
+        { path: "/", icon: Home, label: "Home" },
+        { path: "/logs", icon: ClipboardList, label: "Logs" },
+        { path: "/fuel", icon: Droplet, label: "Fuel" },
+        { path: "/calculator", icon: Calculator, label: "Calc" },
+        { path: "/invoices", icon: ReceiptText, label: "Invoices" },
+      ]
+    : [
+        { path: "/", icon: Home, label: "Home" },
+        { path: "/fleet", icon: Truck, label: "Fleet" },
+        { path: "/logs", icon: ClipboardList, label: "Logs" },
+        { path: "/calculator", icon: Calculator, label: "Calc" },
+        { path: "/analytics", icon: BarChart3, label: "Analytics" },
+        { path: "/khata", icon: BookOpen, label: "Khata" },
+      ];
   const hideBottomNav = location === "/settings" || location === "/drivers";
 
   return (

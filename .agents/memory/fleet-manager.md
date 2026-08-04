@@ -128,3 +128,9 @@ Planned driver invite/access codes must be scoped to the permitted vehicle or ve
 **Why:** A driver must not be able to work with another driver’s logs or use a vehicle outside the access granted by the owner/code.
 
 **How to apply:** Filter driver vehicle choices and log queries by code-granted vehicle access, then require the current driver identity for create, edit, delete, and payment-status mutations.
+
+The owner/driver workspace uses a server-side PostgreSQL boundary rather than relying on each Google account's local cache or Supabase metadata. Owner state is canonical in the shared workspace; driver mutations are merged only for that member's own records and permitted vehicles. Invoices are separate revocable records, and owner branding is read-only for drivers.
+
+**Why:** Cross-account sharing cannot be secured by browser-local state, and invoice delivery needs an owner-controlled revoke path that drivers cannot delete.
+
+**How to apply:** Keep identity and vehicle-scope checks in the API even when the frontend already filters routes or records. Treat the owner workspace as the source of truth for shared vehicles, payment transitions, documents, and invoice visibility.

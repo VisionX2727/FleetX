@@ -3,11 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FleetNote, useStore } from "@/lib/store";
 import { Edit3, FileText, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useRole } from "@/lib/role";
 
 const today = () => new Date().toISOString().split("T")[0];
 
 export default function Notes() {
   const { state, dispatch } = useStore();
+  const { role } = useRole();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<FleetNote | null>(null);
   const [text, setText] = useState("");
@@ -31,7 +33,7 @@ export default function Notes() {
     if (editing) {
       dispatch({ type: "UPDATE_NOTE", payload: { id: editing.id, text: value, updatedAt: today() } });
     } else {
-      dispatch({ type: "ADD_NOTE", payload: { date: today(), text: value } });
+      dispatch({ type: "ADD_NOTE", payload: { date: today(), text: value, ...(role === "driver" ? { driverId: state.drivers[0]?.id } : {}) } });
     }
     setIsOpen(false);
     setEditing(null);

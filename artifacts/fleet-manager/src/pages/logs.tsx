@@ -3,9 +3,11 @@ import { useStore, WorkLog } from "@/lib/store";
 import { useRef, useState } from "react";
 import { Plus, ClipboardX, BookOpen, Truck as TruckIcon, Pencil, X, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useRole } from "@/lib/role";
 
 export default function Logs() {
   const { state, dispatch } = useStore();
+  const { role } = useRole();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
@@ -45,10 +47,12 @@ export default function Logs() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const driverId = role === "driver" ? state.drivers[0]?.id || "" : formData.driverId || "";
+    if (role === "driver" && !driverId) return;
     if (editingLogId) {
-      dispatch({ type: "UPDATE_LOG", payload: { ...formData, id: editingLogId } });
+      dispatch({ type: "UPDATE_LOG", payload: { ...formData, driverId, id: editingLogId } });
     } else {
-      dispatch({ type: 'ADD_LOG', payload: formData });
+      dispatch({ type: 'ADD_LOG', payload: { ...formData, driverId } });
     }
     setIsAddOpen(false);
     setEditingLogId(null);
@@ -137,9 +141,7 @@ export default function Logs() {
   return (
     <Layout>
       <div className="fm-page-header">
-        <div>
           <h1>Daily Work Entry</h1>
-        </div>
         <div className="hidden">
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
@@ -166,20 +168,20 @@ export default function Logs() {
                     {state.vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.regNumber})</option>)}
                   </select>
                 </div>
-                <div>
+                 {role !== "driver" && <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Driver</label>
                   <select value={formData.driverId || ""} onChange={e => setFormData({...formData, driverId: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Select Driver</option>
                     {state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
-                </div>
-                <div>
+                 </div>}
+                 {role !== "driver" && <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Customer / Site</label>
                   <select value={formData.customerId || ""} onChange={e => setFormData({...formData, customerId: e.target.value || undefined})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
                     <option value="">No customer yet</option>
                     {state.customers.filter(c => !c.completed).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                </div>
+                 </div>}
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Description</label>
                   <input value={formData.description || ""} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="Optional work description" />
@@ -241,8 +243,8 @@ export default function Logs() {
         {selectedLogs.length > 0 && (
            <div className="bg-[#1b2d3c] text-white rounded-2xl p-3 mb-4 flex items-center justify-between sticky top-0 z-20 shadow-xl border border-border">
              <div className="flex items-center gap-2"><button type="button" aria-label="Clear selection" onClick={() => setSelectedLogs([])} className="p-1"><X size={22} /></button><span className="font-bold text-base">{selectedLogs.length} selected</span></div>
-            <div className="flex gap-2">
-              <button onClick={() => setIsKhataOpen(true)} className="bg-black text-white border border-white/20 p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><BookOpen size={13} /> Add to Khata</button>
+             <div className="flex gap-2">
+               {role !== "driver" && <button onClick={() => setIsKhataOpen(true)} className="bg-black text-white border border-white/20 p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><BookOpen size={13} /> Add to Khata</button>}
                <button onClick={deleteSelected} className="border border-destructive/50 bg-destructive/10 text-destructive p-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95"><Trash2 size={13} /> Delete</button>
             </div>
           </div>
@@ -265,7 +267,7 @@ export default function Logs() {
                    <h3 className="text-xs font-black uppercase tracking-[0.16em] text-primary">{monthLabel(monthKey)}</h3>
                    <div className="h-px flex-1 bg-border" />
                    <span className="text-[10px] font-bold text-muted-foreground">{monthLogs.length} {monthLogs.length === 1 ? "log" : "logs"}</span>
-                 </div>
+                  </div>
                  <div className="space-y-3">
                  {monthLogs.map(log => {
               const vehicle = state.vehicles.find(v => v.id === log.vehicleId);

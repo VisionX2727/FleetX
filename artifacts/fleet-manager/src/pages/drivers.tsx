@@ -4,9 +4,15 @@ import { useState } from "react";
 import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link } from "wouter";
+import { useRole } from "@/lib/role";
+import { useAuth } from "@/lib/auth";
+import { createInvoiceHtml } from "@/lib/invoice";
+import { revokeDriverInvoice, sendDriverInvoice } from "@/lib/workspace";
 
 export default function Drivers() {
   const { state, dispatch } = useStore();
+  const { members = [], invoices = [], addInvoice, removeInvoice, inviteCode } = useRole();
+  const { session } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [payDriverId, setPayDriverId] = useState<string | null>(null);
   const [historyDriverId, setHistoryDriverId] = useState<string | null>(null);
@@ -14,6 +20,9 @@ export default function Drivers() {
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
   const [activeType, setActiveType] = useState<Driver["type"]>("Regular");
+  const [invoiceMemberId, setInvoiceMemberId] = useState("");
+  const [invoiceTitle, setInvoiceTitle] = useState("FleetX Driver Receipt");
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Driver>>({
     name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: ""
@@ -53,6 +62,61 @@ export default function Drivers() {
   }, 0);
   const driverPaid = (driverId: string) => state.driverPays.filter((pay) => pay.driverId === driverId).reduce((sum, pay) => sum + pay.amount, 0);
 
+  const copyInviteCode = async () => {
+    if (!inviteCode) return;
+    await navigator.clipboard?.writeText(inviteCode);
+  };
+
+  const sendInvoice = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const target = members.find((member) => member.driverUserId === invoiceMemberId);
+    if (!target || !session) return;
+    setInvoiceBusy(true);
+    try {
+      const driverLogs = state.logs.filter((log) => log.driverId === target.id);
+      const driver = state.drivers.find((item) => item.id === target.id);
+      const total = driverLogs.reduce((sum, log) => sum + (driver?.dailyRate || log.amount || 0), 0);
+      const today = new Date().toISOString().split("T")[0];
+      const html = createInvoiceHtml({
+        invoiceId: `DRV-${today}-${target.id.slice(-6)}`,
+        issuedAt: today,
+        issuedTime: new Date().toLocaleTimeString("en-IN"),
+        businessName: state.settings.businessName,
+        companyName: state.settings.companyName || state.settings.businessName,
+        ownerName: state.settings.ownerName || "",
+        phone: state.settings.phone || "",
+        email: state.settings.email || "",
+        address: state.settings.address || "",
+        bankName: state.settings.bankName || "",
+        gstNumber: state.settings.gstNumber || "",
+        upiId: state.settings.upiId || "",
+        logoUrl: state.settings.logoUrl,
+        customerName: target.profile.name,
+        customerPhone: target.profile.phone,
+        customerCompany: "Driver payment",
+        customerAddress: target.profile.address || "",
+        workStart: driverLogs.at(-1)?.date || today,
+        workEnd: driverLogs[0]?.date || today,
+        serviceLocation: state.settings.companyName || state.settings.businessName,
+        lines: driverLogs.map((log) => ({ date: log.date, description: log.description || "Work entry", amount: driver?.dailyRate || log.amount || 0 })),
+        total,
+        balanceDue: total,
+        status: "PENDING",
+      });
+      const result = await sendDriverInvoice(session.access_token, target.driverUserId, invoiceTitle || "FleetX Driver Receipt", html);
+      addInvoice(result.invoice);
+      setInvoiceMemberId("");
+    } finally {
+      setInvoiceBusy(false);
+    }
+  };
+
+  const revokeInvoice = async (invoiceId: string) => {
+    if (!session) return;
+    await revokeDriverInvoice(session.access_token, invoiceId);
+    removeInvoice(invoiceId);
+  };
+
   return (
     <Layout>
       <div className="fm-page-header">
@@ -88,13 +152,6 @@ export default function Drivers() {
                       <option value="Temporary">Temporary</option>
                     </select>
                   </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Assigned Vehicle</label>
-                  <select value={formData.vehicleId || ""} onChange={e => setFormData({...formData, vehicleId: e.target.value || undefined})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
-                    <option value="">Select later</option>
-                    {state.vehicles.map(vehicle => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.regNumber})</option>)}
-                  </select>
-                </div>
                 {formData.type === "Temporary" && <div className="col-span-2 grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Start Date</label>
@@ -118,6 +175,25 @@ export default function Drivers() {
           </Dialog>
         </div>
       </div>
+      <section className="mx-5 mt-4 space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="font-black">Driver Workspace Access</h2><p className="text-xs text-muted-foreground">Share this code with a driver. They choose their own permitted vehicles.</p></div>
+          <button type="button" onClick={() => void copyInviteCode()} className="rounded-xl bg-primary px-4 py-3 text-lg font-black tracking-[0.18em] text-primary-foreground">{inviteCode || "—"}</button>
+        </div>
+        {members.length > 0 ? <div className="space-y-3">
+          {members.map((member) => <div key={member.id} className="rounded-xl border border-border bg-card p-3">
+            <div className="flex items-start justify-between gap-3"><div><strong>{member.profile.name || "Driver"}</strong><p className="text-xs text-muted-foreground">{member.profile.phone} • {member.profile.vehicleIds.length} permitted vehicle(s)</p></div><span className="text-xs font-bold text-emerald-400">{member.profile.status || "Active"}</span></div>
+            {member.profile.documents.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{member.profile.documents.map((document) => <a key={document.id} href={document.dataUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-muted px-2 py-1 text-xs font-bold text-primary">{document.name}</a>)}</div>}
+          </div>)}
+          <form onSubmit={sendInvoice} className="space-y-2 border-t border-border pt-3">
+            <div className="text-xs font-black uppercase tracking-wider text-muted-foreground">Send receipt / invoice</div>
+            <select required value={invoiceMemberId} onChange={(event) => setInvoiceMemberId(event.target.value)} className="w-full rounded-xl bg-muted p-3 font-semibold"><option value="">Select joined driver</option>{members.map((member) => <option key={member.driverUserId} value={member.driverUserId}>{member.profile.name || member.driverUserId}</option>)}</select>
+            <input value={invoiceTitle} onChange={(event) => setInvoiceTitle(event.target.value)} className="w-full rounded-xl bg-muted p-3 font-semibold" placeholder="Invoice title" />
+            <button disabled={invoiceBusy} type="submit" className="w-full rounded-xl bg-primary p-3 font-black text-primary-foreground">{invoiceBusy ? "Sending..." : "Send PDF Receipt"}</button>
+          </form>
+          {invoices.length > 0 && <div className="space-y-2 border-t border-border pt-3"><div className="text-xs font-black uppercase tracking-wider text-muted-foreground">Sent invoices</div>{invoices.map((invoice) => <div key={invoice.id} className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3 text-sm"><span className="truncate">{invoice.title}</span>{invoice.revokedAt ? <span className="text-xs text-muted-foreground">Revoked</span> : <button type="button" onClick={() => void revokeInvoice(invoice.id)} className="shrink-0 text-xs font-bold text-rose-300">Revoke</button>}</div>)}</div>}
+        </div> : <p className="text-sm text-muted-foreground">No joined drivers yet.</p>}
+      </section>
       <div className="fm-tab-row">
         <button className={`fm-tab ${activeType === "Regular" ? "is-active" : ""}`} onClick={() => setActiveType("Regular")}>Regular ({state.drivers.filter((driver) => driver.type === "Regular").length})</button>
         <button className={`fm-tab ${activeType === "Temporary" ? "is-active" : ""}`} onClick={() => setActiveType("Temporary")}>Temporary ({state.drivers.filter((driver) => driver.type === "Temporary").length})</button>

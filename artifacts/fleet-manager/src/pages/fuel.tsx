@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Plus, Droplet, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
+import { useRole } from "@/lib/role";
 
 export default function Fuel() {
   const { state, dispatch } = useStore();
+  const { role } = useRole();
   const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const action = searchParams.get('action');
@@ -22,7 +24,7 @@ export default function Fuel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    dispatch({ type: 'ADD_FUEL', payload: formData });
+    dispatch({ type: 'ADD_FUEL', payload: { ...formData, driverId: role === "driver" ? state.drivers[0]?.id || "" : formData.driverId } });
     setIsAddOpen(false);
     if(action === 'new') setLocation('/fuel');
     setFormData({ date: filterDate, vehicleId: "", driverId: "", quantity: 0, cost: 0, odometer: 0 });
@@ -61,13 +63,13 @@ export default function Fuel() {
                     {state.vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.regNumber})</option>)}
                   </select>
                 </div>
-                <div>
+                {role !== "driver" && <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Filled By (Driver)</label>
                   <select value={formData.driverId || ""} onChange={e => setFormData({...formData, driverId: e.target.value || undefined})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary">
                     <option value="">No driver / owner</option>
                     {state.drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
-                </div>
+                </div>}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Liters</label>

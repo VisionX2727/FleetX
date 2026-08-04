@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase, supabaseConfigured } from '@/lib/supabase';
+import { saveDriverWorkspace, saveOwnerWorkspace } from '@/lib/workspace';
 
 export type Vehicle = {
   id: string; name: string; type: string; regNumber: string; status: 'Active' | 'Idle' | 'Maintenance';
@@ -13,7 +14,7 @@ export type LedgerEntry = { id: string; customerId: string; logId?: string; vehi
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
-export type FleetNote = { id: string; date: string; text: string; updatedAt?: string };
+export type FleetNote = { id: string; date: string; text: string; updatedAt?: string; driverId?: string };
 export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
@@ -27,7 +28,9 @@ export type AppState = {
   driverPays: DriverPay[];
   notes: FleetNote[];
   settings: Settings;
+  maintenanceRequests?: MaintenanceRequest[];
 };
+export type MaintenanceRequest = { id: string; vehicleId: string; driverId: string; date: string; title: string; description?: string; status: "Open" | "Resolved" };
 
 const defaultSettings: Settings = { businessName: 'FleetX', companyName: '', ownerName: '', phone: '', address: '', email: '', gstPercentage: 0, isLoggedIn: true };
 
@@ -42,6 +45,7 @@ const defaultState: AppState = {
   driverPays: [],
   notes: [],
   settings: defaultSettings,
+  maintenanceRequests: [],
 };
 
 function createEntityId(prefix: string) {
@@ -63,6 +67,7 @@ function normalizeState(value: Partial<AppState>): AppState {
     driverPays: value.driverPays || fresh.driverPays,
     notes: value.notes || fresh.notes,
     settings: { ...fresh.settings, ...(value.settings || {}) },
+    maintenanceRequests: value.maintenanceRequests || [],
   };
 }
 
@@ -85,12 +90,19 @@ export function StoreProvider({
   children,
   userId,
   cloudSync = true,
+  role,
+  accessToken,
+  remoteState,
 }: {
   children: ReactNode;
   userId: string;
   cloudSync?: boolean;
+  role?: "owner" | "driver";
+  accessToken?: string;
+  remoteState?: AppState;
 }) {
   const [state, setState] = useState<AppState>(() => {
+    if (remoteState) return normalizeState(remoteState);
     const scopedKey = getStorageKey(userId);
     const scopedSaved = localStorage.getItem(scopedKey);
     const legacySaved = localStorage.getItem("fleet-manager-state");
@@ -121,6 +133,11 @@ export function StoreProvider({
   useEffect(() => {
     let mounted = true;
     setCloudLoaded(false);
+    if (remoteState) {
+      setState(normalizeState(remoteState));
+      setCloudLoaded(true);
+      return () => { mounted = false; };
+    }
     if (!cloudSync || !supabaseConfigured) {
       setCloudLoaded(true);
       return () => { mounted = false; };
@@ -138,14 +155,21 @@ export function StoreProvider({
 
   useEffect(() => {
     localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
-    if (!cloudLoaded || !cloudSync || !supabaseConfigured) return;
+    if (!cloudLoaded || !cloudSync) return;
     const timer = window.setTimeout(() => {
-      supabase.auth.updateUser({ data: { fleet_manager_data: state } }).catch((error) => {
+      const sync = role === "driver" && accessToken
+        ? saveDriverWorkspace(accessToken, state)
+        : role === "owner" && accessToken
+          ? saveOwnerWorkspace(accessToken, state)
+          : supabaseConfigured
+            ? supabase.auth.updateUser({ data: { fleet_manager_data: state } })
+            : Promise.resolve();
+      sync.catch((error) => {
         console.error("Fleet cloud sync failed", error);
       });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [state, userId, cloudLoaded, cloudSync]);
+  }, [state, userId, cloudLoaded, cloudSync, role, accessToken, remoteState]);
 
   const dispatch = (action: { type: string; payload?: any }) => {
     if (action.type === "RESET_DATA") {
@@ -217,6 +241,13 @@ export function StoreProvider({
         // Fuel Actions
         case 'ADD_FUEL':
           return { ...prev, fuelRecords: [...prev.fuelRecords, { id: `f${Date.now()}`, ...action.payload }] };
+
+        case 'ADD_MAINTENANCE':
+          return { ...prev, maintenanceRequests: [...(prev.maintenanceRequests || []), { id: createEntityId("m"), ...action.payload }] };
+        case 'UPDATE_MAINTENANCE':
+          return { ...prev, maintenanceRequests: (prev.maintenanceRequests || []).map(request => request.id === action.payload.id ? { ...request, ...action.payload } : request) };
+        case 'DELETE_MAINTENANCE':
+          return { ...prev, maintenanceRequests: (prev.maintenanceRequests || []).filter(request => request.id !== action.payload) };
         
         // Driver Actions
         case 'ADD_DRIVER':
@@ -277,4 +308,14 @@ export function useStore() {
   const context = useContext(StoreContext);
   if (!context) throw new Error('useStore must be used within StoreProvider');
   return context;
+}
+
+export function getLocalState(userId: string): AppState {
+  const saved = localStorage.getItem(getStorageKey(userId));
+  if (!saved) return cloneDefaultState();
+  try {
+    return normalizeState(JSON.parse(saved) as Partial<AppState>);
+  } catch {
+    return cloneDefaultState();
+  }
 }
