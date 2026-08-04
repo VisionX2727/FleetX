@@ -116,3 +116,9 @@ In the planned owner/driver workspace, the driver sees the owner’s company log
 **Why:** Driver identity and owner business identity must remain separate, while the owner’s branding should carry into the driver workspace.
 
 **How to apply:** Keep owner logo/name sourced from the linked owner profile, expose them read-only to drivers, and allow only driver-owned profile fields to be edited.
+
+In the planned driver workspace, drivers may edit or delete their own work logs to correct mistakes, but cannot modify another driver’s logs; the driver Settings footer should say “App made by Mandar.”
+
+**Why:** Drivers need to correct their own entries without gaining access to other drivers’ records, and the requested product credit is consistent across workspaces.
+
+**How to apply:** Enforce log ownership on edit/delete actions and use the latest “Mandar” wording if an earlier branding-credit value conflicts.
