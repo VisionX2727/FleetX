@@ -217,6 +217,14 @@ function AuthenticatedShell() {
       .finally(() => setWorkspaceLoading(false));
   }, [user, session]);
 
+  useEffect(() => {
+    if (!session || !workspace?.role || workspace.role === "blocked" || workspace.role === "removed") return;
+    const timer = window.setInterval(() => {
+      void getWorkspace(session.access_token).then(setWorkspace).catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [session, workspace?.role]);
+
   if (loading) return <Splash />;
   if (!user || !session) return <Login />;
   if (workspaceLoading) return <Splash label="Preparing workspace..." />;
@@ -248,6 +256,9 @@ function AuthenticatedShell() {
   if (!workspace.role) {
     return <RoleSelection userId={user.id} accessToken={session.access_token} onReady={setWorkspace} />;
   }
+  if (workspace.role === "blocked" || workspace.role === "removed") {
+    return <DriverAccessStatus status={workspace.role} userId={user.id} accessToken={session.access_token} member={workspace.member} onReady={setWorkspace} />;
+  }
 
   const role = workspace.role;
   const roleValue: WorkspaceRole = {
@@ -276,6 +287,56 @@ function AuthenticatedShell() {
         </WouterRouter>
       </StoreProvider>
     </RoleProvider>
+  );
+}
+
+function DriverAccessStatus({
+  status,
+  userId,
+  accessToken,
+  member,
+  onReady,
+}: {
+  status: "blocked" | "removed";
+  userId: string;
+  accessToken: string;
+  member?: WorkspaceResponse["member"];
+  onReady: (workspace: WorkspaceResponse) => void;
+}) {
+  const { signOut } = useAuth();
+  const [code, setCode] = useState("");
+  const [name, setName] = useState(member?.profile.name || "");
+  const [phone, setPhone] = useState(member?.profile.phone || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const rejoin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      onReady(await joinOwnerWorkspace(accessToken, code, { name, phone, address: member?.profile.address || "", vehicleIds: member?.profile.vehicleIds || [], documents: member?.profile.documents || [] }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not join the owner workspace");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="min-h-[100dvh] bg-background px-5 py-10 text-foreground">
+      <div className="mx-auto flex min-h-[80dvh] w-full max-w-md flex-col justify-center text-center">
+        <img src={splashLogo} alt="FleetX logo" className="fm-login-logo mx-auto" />
+        <h1 className="mt-6 text-3xl font-black">{status === "blocked" ? "Owner blocked you" : "Owner removed you"}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">{status === "blocked" ? "Your previous logs and payment history are safe. Ask the owner to unblock you to continue." : "You can join an owner again with a valid FleetX code."}</p>
+        {status === "removed" && <form onSubmit={rejoin} className="mt-6 space-y-3 text-left">
+          <input required value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Owner FleetX code" className="w-full rounded-xl bg-muted p-4 font-black tracking-[0.2em] outline-none" />
+          <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" className="w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
+          <input required type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Mobile number" className="w-full rounded-xl bg-muted p-4 font-semibold outline-none" />
+          {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+          <button disabled={busy} type="submit" className="w-full rounded-xl bg-primary p-4 font-black text-primary-foreground">{busy ? "Joining..." : "Join Owner Again"}</button>
+        </form>}
+        <button type="button" onClick={() => void signOut()} className="mt-4 w-full rounded-xl border border-border bg-card p-3 text-sm font-bold">Back to sign in / switch account</button>
+      </div>
+    </main>
   );
 }
 

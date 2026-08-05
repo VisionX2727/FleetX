@@ -13,7 +13,8 @@ type MemberProfile = {
   address?: string;
   vehicleIds: string[];
   documents: Array<{ id: string; name: string; type: string; dataUrl: string; uploadedAt: string }>;
-  status?: "Active" | "Suspended";
+  sharedFiles: Array<{ id: string; name: string; type: string; dataUrl: string; uploadedAt: string }>;
+  status?: "Active" | "Blocked" | "Removed" | "Suspended";
 };
 
 function id(prefix: string) {
@@ -28,7 +29,8 @@ function profile(value: unknown): MemberProfile {
     address: input.address ? String(input.address) : "",
     vehicleIds: Array.isArray(input.vehicleIds) ? input.vehicleIds.map(String) : [],
     documents: Array.isArray(input.documents) ? input.documents as MemberProfile["documents"] : [],
-    status: input.status === "Suspended" ? "Suspended" : "Active",
+    sharedFiles: Array.isArray(input.sharedFiles) ? input.sharedFiles as MemberProfile["sharedFiles"] : [],
+    status: input.status === "Blocked" || input.status === "Removed" || input.status === "Suspended" ? input.status : "Active",
   };
 }
 
@@ -58,6 +60,11 @@ function driverState(stateValue: unknown, member: typeof fleetMembers.$inferSele
   const ownNotes = Array.isArray(state.notes)
     ? state.notes.filter((note: AnyRecord) => String(note.driverId) === member.id)
     : [];
+  const driverAbsentDates = Array.isArray(state.logs)
+    ? [...new Set(state.logs
+      .filter((log: AnyRecord) => memberProfile.vehicleIds.includes(String(log.vehicleId)) && String(log.driverId) !== member.id)
+      .map((log: AnyRecord) => String(log.date)))]
+    : [];
   const driver = Array.isArray(state.drivers)
     ? state.drivers.find((item: AnyRecord) => String(item.id) === member.id)
     : undefined;
@@ -73,6 +80,7 @@ function driverState(stateValue: unknown, member: typeof fleetMembers.$inferSele
     customers: [],
     ledgers: [],
     fleetDays: [],
+    driverAbsentDates,
   };
 }
 
@@ -105,12 +113,43 @@ function mergeDriverState(ownerStateValue: unknown, incomingValue: unknown, memb
   const existingMaintenance = Array.isArray(ownerState.maintenanceRequests)
     ? ownerState.maintenanceRequests.filter((request: AnyRecord) => String(request.driverId) !== member.id)
     : [];
+  const incomingDriverPays = Array.isArray(incoming.driverPays)
+    ? incoming.driverPays.filter((pay: AnyRecord) => String(pay.driverId) === member.id)
+    : [];
+  const existingDriverPays = Array.isArray(ownerState.driverPays)
+    ? ownerState.driverPays.filter((pay: AnyRecord) => String(pay.driverId) !== member.id)
+    : [];
   return {
     ...ownerState,
     logs: [...existingLogs, ...incomingLogs],
     fuelRecords: [...existingFuel, ...incomingFuel],
     notes: [...existingNotes, ...incomingNotes],
     maintenanceRequests: [...existingMaintenance, ...incomingMaintenance],
+    driverPays: [...existingDriverPays, ...incomingDriverPays],
+  };
+}
+
+function withoutDriverRecords(stateValue: unknown, memberId: string) {
+  const state = normalizeState(stateValue);
+  const own = (item: AnyRecord) => String(item.driverId) === memberId;
+  return {
+    ...state,
+    drivers: Array.isArray(state.drivers) ? state.drivers.filter((driver: AnyRecord) => String(driver.id) !== memberId) : [],
+    logs: Array.isArray(state.logs) ? state.logs.filter((item: AnyRecord) => !own(item)) : [],
+    fuelRecords: Array.isArray(state.fuelRecords) ? state.fuelRecords.filter((item: AnyRecord) => !own(item)) : [],
+    driverPays: Array.isArray(state.driverPays) ? state.driverPays.filter((item: AnyRecord) => !own(item)) : [],
+    notes: Array.isArray(state.notes) ? state.notes.filter((item: AnyRecord) => !own(item)) : [],
+    maintenanceRequests: Array.isArray(state.maintenanceRequests) ? state.maintenanceRequests.filter((item: AnyRecord) => !own(item)) : [],
+  };
+}
+
+function withDriverStatus(stateValue: unknown, memberId: string, status: MemberProfile["status"]) {
+  const state = normalizeState(stateValue);
+  return {
+    ...state,
+    drivers: Array.isArray(state.drivers)
+      ? state.drivers.map((driver: AnyRecord) => String(driver.id) === memberId ? { ...driver, status } : driver)
+      : [],
   };
 }
 
@@ -141,8 +180,17 @@ router.get("/", async (req, res) => {
     res.status(409).json({ error: "Owner workspace is unavailable" });
     return;
   }
-  const invoices = await db.select().from(fleetInvoices).where(and(eq(fleetInvoices.driverUserId, userId), eq(fleetInvoices.ownerUserId, member.ownerUserId)));
+  const memberProfile = profile(member.profile);
   const ownerState = normalizeState(workspace.state);
+  const invoices = await db.select().from(fleetInvoices).where(and(eq(fleetInvoices.driverUserId, userId), eq(fleetInvoices.ownerUserId, member.ownerUserId)));
+  if (memberProfile.status === "Blocked") {
+    res.json({ role: "blocked", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: [], invoices });
+    return;
+  }
+  if (memberProfile.status === "Removed") {
+    res.json({ role: "removed", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: [], invoices });
+    return;
+  }
   res.json({ role: "driver", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: Array.isArray(ownerState.vehicles) ? ownerState.vehicles : [], state: driverState(workspace.state, member), invoices });
 });
 
@@ -172,7 +220,26 @@ router.put("/owner/state", async (req, res) => {
     res.status(404).json({ error: "Owner workspace not found" });
     return;
   }
-  const updated = await db.update(fleetWorkspaces).set({ state: normalizeState(req.body?.state), updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId)).returning();
+  const incoming = normalizeState(req.body?.state);
+  const existing = normalizeState(current.state);
+  const driverOwned = (item: AnyRecord) => item.driverId !== undefined && item.driverId !== null && String(item.driverId) !== "";
+  const preserveDriverRecords = (key: string) => {
+    const incomingItems = Array.isArray(incoming[key]) ? incoming[key] : [];
+    const existingItems = Array.isArray(existing[key]) ? existing[key] : [];
+    const incomingDriverIds = new Set(incomingItems.filter(driverOwned).map((item: AnyRecord) => String(item.driverId)));
+    return [
+      ...incomingItems.filter((item: AnyRecord) => !driverOwned(item)),
+      ...existingItems.filter((item: AnyRecord) => driverOwned(item) && !incomingDriverIds.has(String(item.driverId))),
+    ];
+  };
+  const nextState = {
+    ...incoming,
+    logs: preserveDriverRecords("logs"),
+    fuelRecords: preserveDriverRecords("fuelRecords"),
+    notes: preserveDriverRecords("notes"),
+    maintenanceRequests: preserveDriverRecords("maintenanceRequests"),
+  };
+  const updated = await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId)).returning();
   res.json({ state: updated[0].state });
 });
 
@@ -191,11 +258,11 @@ router.post("/join", async (req, res) => {
   }
   const memberProfile = profile(req.body?.profile);
   const member = existing
-    ? (await db.update(fleetMembers).set({ ownerUserId: owner.ownerUserId, profile: memberProfile, updatedAt: new Date() }).where(eq(fleetMembers.driverUserId, userId)).returning())[0]
+    ? (await db.update(fleetMembers).set({ ownerUserId: owner.ownerUserId, profile: { ...memberProfile, status: "Active" }, updatedAt: new Date() }).where(eq(fleetMembers.driverUserId, userId)).returning())[0]
     : (await db.insert(fleetMembers).values({ id: id("driver"), ownerUserId: owner.ownerUserId, driverUserId: userId, profile: memberProfile }).returning())[0];
   const state = normalizeState(owner.state);
   const drivers = Array.isArray(state.drivers) ? [...state.drivers] : [];
-  const driver = { id: member.id, name: memberProfile.name, phone: memberProfile.phone, type: "Regular", dailyRate: 0, vehicleIds: memberProfile.vehicleIds };
+  const driver = { id: member.id, name: memberProfile.name, phone: memberProfile.phone, type: "Regular", dailyRate: 0, vehicleIds: memberProfile.vehicleIds, status: "Active" };
   const nextState: AnyRecord = { ...state, drivers: [...drivers.filter((item: AnyRecord) => String(item.id) !== member.id), driver] };
   await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, owner.ownerUserId));
   res.json({ role: "driver", ownerUserId: owner.ownerUserId, member, ownerSettings: nextState.settings || {}, availableVehicles: Array.isArray(nextState.vehicles) ? nextState.vehicles : [], state: driverState(nextState, member), invoices: [] });
@@ -206,6 +273,10 @@ router.put("/driver/profile", async (req, res) => {
   const member = await memberForDriver(userId);
   if (!member) {
     res.status(404).json({ error: "Driver membership not found" });
+    return;
+  }
+  if (profile(member.profile).status !== "Active") {
+    res.status(403).json({ error: profile(member.profile).status === "Blocked" ? "Owner blocked your driver access" : "Owner removed your driver access" });
     return;
   }
   const nextProfile = profile(req.body?.profile);
@@ -223,11 +294,114 @@ router.put("/driver/profile", async (req, res) => {
   res.json({ member: updated });
 });
 
+router.put("/owner/members/:memberId", async (req, res) => {
+  const userId = req.authUserId!;
+  const owner = await ownerWorkspace(userId);
+  if (!owner) {
+    res.status(403).json({ error: "Only the owner can manage drivers" });
+    return;
+  }
+  const member = await db.select().from(fleetMembers).where(and(eq(fleetMembers.id, req.params.memberId), eq(fleetMembers.ownerUserId, userId))).limit(1).then((rows) => rows[0]);
+  if (!member) {
+    res.status(404).json({ error: "Driver not found" });
+    return;
+  }
+  const currentProfile = profile(member.profile);
+  const nextProfile = { ...currentProfile, ...profile(req.body?.profile), status: currentProfile.status };
+  const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
+  const state = normalizeState(owner.state);
+  const nextState = {
+    ...state,
+    drivers: Array.isArray(state.drivers)
+      ? state.drivers.map((driver: AnyRecord) => String(driver.id) === member.id ? { ...driver, name: nextProfile.name, phone: nextProfile.phone, vehicleIds: nextProfile.vehicleIds, status: nextProfile.status } : driver)
+      : [],
+  };
+  await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId));
+  res.json({ member: { id: updated.id, driverUserId: updated.driverUserId, profile: profile(updated.profile) } });
+});
+
+router.post("/owner/members/:memberId/files", async (req, res) => {
+  const userId = req.authUserId!;
+  const owner = await ownerWorkspace(userId);
+  if (!owner) {
+    res.status(403).json({ error: "Only the owner can send files" });
+    return;
+  }
+  const member = await db.select().from(fleetMembers).where(and(eq(fleetMembers.id, req.params.memberId), eq(fleetMembers.ownerUserId, userId))).limit(1).then((rows) => rows[0]);
+  if (!member) {
+    res.status(404).json({ error: "Driver not found" });
+    return;
+  }
+  const input = req.body?.file;
+  if (!input?.name || !input?.dataUrl) {
+    res.status(400).json({ error: "A file is required" });
+    return;
+  }
+  const nextProfile = {
+    ...profile(member.profile),
+    sharedFiles: [...profile(member.profile).sharedFiles, {
+      id: id("file"),
+      name: String(input.name),
+      type: String(input.type || "application/octet-stream"),
+      dataUrl: String(input.dataUrl),
+      uploadedAt: new Date().toISOString().slice(0, 10),
+    }],
+  };
+  const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
+  res.json({ member: { id: updated.id, driverUserId: updated.driverUserId, profile: profile(updated.profile) } });
+});
+
+router.post("/owner/members/:memberId/status", async (req, res) => {
+  const userId = req.authUserId!;
+  const owner = await ownerWorkspace(userId);
+  if (!owner) {
+    res.status(403).json({ error: "Only the owner can manage drivers" });
+    return;
+  }
+  const status = req.body?.status;
+  if (!["Active", "Blocked", "Removed"].includes(status)) {
+    res.status(400).json({ error: "Invalid driver status" });
+    return;
+  }
+  const member = await db.select().from(fleetMembers).where(and(eq(fleetMembers.id, req.params.memberId), eq(fleetMembers.ownerUserId, userId))).limit(1).then((rows) => rows[0]);
+  if (!member) {
+    res.status(404).json({ error: "Driver not found" });
+    return;
+  }
+  const nextProfile = { ...profile(member.profile), status };
+  const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
+  const nextState = withDriverStatus(owner.state, member.id, status);
+  await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId));
+  res.json({ member: { id: updated.id, driverUserId: updated.driverUserId, profile: profile(updated.profile) } });
+});
+
+router.delete("/owner/members/:memberId", async (req, res) => {
+  const userId = req.authUserId!;
+  const owner = await ownerWorkspace(userId);
+  if (!owner) {
+    res.status(403).json({ error: "Only the owner can delete drivers" });
+    return;
+  }
+  const member = await db.select().from(fleetMembers).where(and(eq(fleetMembers.id, req.params.memberId), eq(fleetMembers.ownerUserId, userId))).limit(1).then((rows) => rows[0]);
+  if (!member) {
+    res.status(404).json({ error: "Driver not found" });
+    return;
+  }
+  await db.delete(fleetMembers).where(eq(fleetMembers.id, member.id));
+  await db.delete(fleetInvoices).where(and(eq(fleetInvoices.ownerUserId, userId), eq(fleetInvoices.driverUserId, member.driverUserId)));
+  await db.update(fleetWorkspaces).set({ state: withoutDriverRecords(owner.state, member.id), updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId));
+  res.json({ ok: true });
+});
+
 router.put("/driver/state", async (req, res) => {
   const userId = req.authUserId!;
   const member = await memberForDriver(userId);
   if (!member) {
     res.status(404).json({ error: "Driver membership not found" });
+    return;
+  }
+  if (profile(member.profile).status !== "Active") {
+    res.status(403).json({ error: profile(member.profile).status === "Blocked" ? "Owner blocked your driver access" : "Owner removed your driver access" });
     return;
   }
   const workspace = await ownerWorkspace(member.ownerUserId);

@@ -18,12 +18,13 @@ export type DriverMembership = {
     address?: string;
     vehicleIds: string[];
     documents: DriverDocument[];
-    status?: "Active" | "Suspended";
+    sharedFiles?: DriverDocument[];
+    status?: "Active" | "Blocked" | "Removed" | "Suspended";
   };
 };
 
 export type WorkspaceResponse = {
-  role: "owner" | "driver" | null;
+  role: "owner" | "driver" | "blocked" | "removed" | null;
   ownerUserId?: string;
   state?: AppState;
   inviteCode?: string;
@@ -125,4 +126,29 @@ export function revokeDriverInvoice(token: string, invoiceId: string) {
 
 export function getDriverInvoices(token: string) {
   return request<{ invoices: WorkspaceResponse["invoices"] }>("/invoices", token);
+}
+
+export function updateOwnerDriver(token: string, memberId: string, profile: DriverMembership["profile"]) {
+  return request<{ member: WorkspaceResponse["members"] extends Array<infer T> ? T : never }>("/owner/members/" + memberId, token, {
+    method: "PUT",
+    body: JSON.stringify({ profile }),
+  });
+}
+
+export function setOwnerDriverStatus(token: string, memberId: string, status: "Active" | "Blocked" | "Removed") {
+  return request<{ member: WorkspaceResponse["members"] extends Array<infer T> ? T : never }>(`/owner/members/${memberId}/status`, token, {
+    method: "POST",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function deleteOwnerDriver(token: string, memberId: string) {
+  return request<{ ok: true }>(`/owner/members/${memberId}`, token, { method: "DELETE" });
+}
+
+export function sendDriverFile(token: string, memberId: string, file: DriverDocument) {
+  return request<{ member: NonNullable<WorkspaceResponse["members"]>[number] }>(`/owner/members/${memberId}/files`, token, {
+    method: "POST",
+    body: JSON.stringify({ file }),
+  });
 }

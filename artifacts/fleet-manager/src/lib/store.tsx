@@ -10,11 +10,12 @@ export type Vehicle = {
 export type VehicleDay = { id: string; date: string; vehicleId: string; amount: number; diesel: number; trips: number; hours: number; status: Vehicle['status']; notes?: string };
 export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
 export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; delayStartDate?: string; delayEndDate?: string; addGst?: boolean };
-export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string; paymentMode?: string };
+export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; batchId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string; paymentMode?: string };
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
-export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; startDate?: string; endDate?: string };
+export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; vehicleIds?: string[]; startDate?: string; endDate?: string; status?: 'Active' | 'Blocked' | 'Removed' };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
 export type FleetNote = { id: string; date: string; text: string; updatedAt?: string; driverId?: string };
+export type KhataBatch = { id: string; customerId: string; startDate: string; endDate: string; ledgerIds: string[]; createdAt: string };
 export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
@@ -27,8 +28,10 @@ export type AppState = {
   drivers: Driver[];
   driverPays: DriverPay[];
   notes: FleetNote[];
+  khataBatches: KhataBatch[];
   settings: Settings;
   maintenanceRequests?: MaintenanceRequest[];
+  driverAbsentDates?: string[];
 };
 export type MaintenanceRequest = { id: string; vehicleId: string; driverId: string; date: string; title: string; description?: string; status: "Open" | "Resolved" };
 
@@ -44,6 +47,7 @@ const defaultState: AppState = {
   drivers: [],
   driverPays: [],
   notes: [],
+  khataBatches: [],
   settings: defaultSettings,
   maintenanceRequests: [],
 };
@@ -66,8 +70,10 @@ function normalizeState(value: Partial<AppState>): AppState {
     drivers: value.drivers || fresh.drivers,
     driverPays: value.driverPays || fresh.driverPays,
     notes: value.notes || fresh.notes,
+    khataBatches: value.khataBatches || [],
     settings: { ...fresh.settings, ...(value.settings || {}) },
     maintenanceRequests: value.maintenanceRequests || [],
+    driverAbsentDates: value.driverAbsentDates || [],
   };
 }
 
@@ -275,11 +281,39 @@ export function StoreProvider({
             ...prev,
             drivers: prev.drivers.filter(d => d.id !== action.payload),
             driverPays: prev.driverPays.filter(pay => pay.driverId !== action.payload),
+            logs: prev.logs.filter(log => log.driverId !== action.payload),
+            fuelRecords: prev.fuelRecords.filter(record => record.driverId !== action.payload),
+            notes: prev.notes.filter(note => note.driverId !== action.payload),
+            maintenanceRequests: (prev.maintenanceRequests || []).filter(request => request.driverId !== action.payload),
           };
         
         // Driver Pay Actions
         case 'ADD_DRIVER_PAY':
           return { ...prev, driverPays: [...prev.driverPays, { id: `dp${Date.now()}`, ...action.payload }] };
+
+        case 'ADD_KHATA_BATCH':
+          { const batchId = action.payload.id || createEntityId("kb");
+          const batch = { id: batchId, createdAt: new Date().toISOString(), ...action.payload };
+          return {
+            ...prev,
+            khataBatches: [...prev.khataBatches, batch],
+            ledgers: prev.ledgers.map((entry) => batch.ledgerIds?.includes(entry.id) ? { ...entry, batchId } : entry),
+          };
+          }
+        case 'DELETE_KHATA_BATCH': {
+          const batchId = action.payload;
+          const batch = prev.khataBatches.find((item) => item.id === batchId);
+          return {
+            ...prev,
+            khataBatches: prev.khataBatches.filter((item) => item.id !== batchId),
+            ledgers: batch
+              ? prev.ledgers.filter((entry) => !batch.ledgerIds.includes(entry.id))
+              : prev.ledgers,
+            logs: batch
+              ? prev.logs.filter((log) => !batch.ledgerIds.some((ledgerId) => prev.ledgers.find((entry) => entry.id === ledgerId)?.logId === log.id))
+              : prev.logs,
+          };
+        }
 
         // Notes Actions
         case 'ADD_NOTE':

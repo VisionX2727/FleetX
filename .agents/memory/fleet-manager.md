@@ -152,3 +152,9 @@ Workspace clients should retry authenticated API calls against the known product
 **Why:** Static frontend hosts can serve the SPA fallback for API paths or reject POST methods even though the Replit API service is healthy, causing both Owner and Driver actions to fail identically.
 
 **How to apply:** Keep the same-origin request first for normal deployments, then retry only 404/405 responses against the production API origin; do not hide genuine 401/403/404 business errors from the API.
+
+FleetX frontend builds require both `PORT` and `BASE_PATH` environment variables; the artifact's production build uses `PORT=23693 BASE_PATH=/`.
+
+**Why:** The Vite config intentionally fails fast when either routing or port configuration is missing, while the configured Vercel build supplies both values.
+
+**How to apply:** Use the artifact/Vercel build command or provide both variables for local production builds; do not weaken the config's required routing contract.

@@ -2,6 +2,11 @@ import { Layout } from "@/components/layout";
 import { useStore } from "@/lib/store";
 import { BarChart3, TrendingUp, Fuel, Users, Share2, Layers3, LineChart } from "lucide-react";
 import { useState } from "react";
+import { createHtmlPdf } from "@/lib/pdf";
+
+function escapeReport(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character] || character));
+}
 
 export default function Analytics() {
   const { state } = useStore();
@@ -37,12 +42,34 @@ export default function Analytics() {
       ? `conic-gradient(#34d399 0 ${revenuePercent}%, #fb7185 ${revenuePercent}% 100%)`
       : "conic-gradient(#253445 0 100%)",
   };
+  const reportHtml = () => {
+    const vehicleRows = state.vehicles.map((vehicle) => {
+      const revenue = state.logs.filter((log) => log.vehicleId === vehicle.id && inRange(log.date)).reduce((sum, log) => sum + log.amount, 0) + state.fleetDays.filter((day) => day.vehicleId === vehicle.id && inRange(day.date)).reduce((sum, day) => sum + day.amount, 0);
+      const fuel = relevantFuel.filter((record) => record.vehicleId === vehicle.id).reduce((sum, record) => sum + record.cost, 0);
+      return `<tr><td>${escapeReport(vehicle.name)}</td><td>₹${revenue.toLocaleString("en-IN")}</td><td>₹${fuel.toLocaleString("en-IN")}</td><td>₹${(revenue - fuel).toLocaleString("en-IN")}</td></tr>`;
+    }).join("");
+    return `<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#eef1f4;font:14px Arial;color:#18202b}.sheet{width:794px;min-height:1123px;background:#fff;padding:36px}.brand{border-bottom:4px solid #f5b91d;padding-bottom:18px}.brand h1{margin:0;font-size:30px}.muted{color:#687386}.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}.kpi{border:1px solid #d7dde5;border-radius:10px;padding:14px}.kpi b{display:block;font-size:21px;margin-top:6px}.section{margin-top:22px}.section h2{font-size:17px;border-bottom:1px solid #d7dde5;padding-bottom:7px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d7dde5;padding:9px;text-align:left}th{background:#f4f6f8}td:not(:first-child),th:not(:first-child){text-align:right}</style></head><body><main class="sheet"><header class="brand"><h1>${escapeReport(state.settings.companyName || state.settings.businessName || "FleetX")} — Analytics Report</h1><p class="muted">${escapeReport(range)} • ${escapeReport(filter === "All" ? "All vehicles" : state.vehicles.find((vehicle) => vehicle.id === filter)?.name || filter)}</p></header><section class="kpis"><div class="kpi">Revenue<b>₹${totalRevenue.toLocaleString("en-IN")}</b></div><div class="kpi">Expenses<b>₹${totalExpenses.toLocaleString("en-IN")}</b></div><div class="kpi">Net Profit<b>₹${netProfit.toLocaleString("en-IN")}</b></div><div class="kpi">Fuel<b>${fuelLiters.toLocaleString("en-IN")} L</b></div><div class="kpi">Driver Cost<b>₹${driverCost.toLocaleString("en-IN")}</b></div><div class="kpi">Working Days<b>${workingDays}</b></div></section><section class="section"><h2>Vehicle Performance</h2><table><thead><tr><th>Vehicle</th><th>Revenue</th><th>Fuel</th><th>Contribution</th></tr></thead><tbody>${vehicleRows || "<tr><td colspan='4'>No vehicle data</td></tr>"}</tbody></table></section><section class="section"><h2>Report Details</h2><p>Logs: ${relevantLogs.length} • Fuel records: ${relevantFuel.length} • Driver expense: ₹${driverCost.toLocaleString("en-IN")} • Average per working day: ₹${avgDay.toLocaleString("en-IN")}</p></section></main></body></html>`;
+  };
+  const shareReport = async () => {
+    const blob = await createHtmlPdf(reportHtml());
+    const file = new File([blob], `fleetx-analytics-${today}.pdf`, { type: "application/pdf" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ title: "FleetX Analytics Report", text: `${range} analytics report`, files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.name;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Layout>
       <header className="fm-page-header">
         <div><h1>Analytics</h1></div>
-        <button type="button" className="fm-primary-button !rounded-full !px-4 !py-2 text-sm"><Share2 size={16} /> Share Report</button>
+        <button type="button" onClick={() => void shareReport()} className="fm-primary-button !rounded-full !px-4 !py-2 text-sm"><Share2 size={16} /> Share Report</button>
       </header>
       <div className="fm-filter-row">
         {(["Today", "This Week", "This Month"] as const).map((item) => <button type="button" key={item} onClick={() => setRange(item)} className={`fm-filter-pill ${range === item ? "is-selected" : ""}`}>{item}</button>)}

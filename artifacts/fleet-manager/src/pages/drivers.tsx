@@ -1,17 +1,18 @@
 import { Layout } from "@/components/layout";
 import { useStore, Driver } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2, Phone, Ban, RotateCcw, UserMinus, FileUp, Send, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link } from "wouter";
 import { useRole } from "@/lib/role";
 import { useAuth } from "@/lib/auth";
 import { createInvoiceHtml } from "@/lib/invoice";
-import { revokeDriverInvoice, sendDriverInvoice } from "@/lib/workspace";
+import { createHtmlPdf } from "@/lib/pdf";
+import { revokeDriverInvoice, sendDriverInvoice, type DriverDocument } from "@/lib/workspace";
 
 export default function Drivers() {
   const { state, dispatch } = useStore();
-  const { members = [], invoices = [], addInvoice, removeInvoice, inviteCode } = useRole();
+  const { members = [], invoices = [], addInvoice, removeInvoice, inviteCode, updateOwnerMemberStatus, deleteOwnerMember, sendOwnerFile } = useRole();
   const { session } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [payDriverId, setPayDriverId] = useState<string | null>(null);
@@ -23,6 +24,7 @@ export default function Drivers() {
   const [invoiceMemberId, setInvoiceMemberId] = useState("");
   const [invoiceTitle, setInvoiceTitle] = useState("FleetX Driver Receipt");
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [memberBusy, setMemberBusy] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<Partial<Driver>>({
     name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: ""
@@ -47,11 +49,59 @@ export default function Drivers() {
   };
 
   const deleteDriver = (driver: Driver) => {
-    if (!window.confirm(`Delete ${driver.name}? Their driver payment history will also be removed, but work logs will remain.`)) return;
+    if (!window.confirm(`Delete ${driver.name}? Their work logs, fuel records, notes and payment history will also be deleted.`)) return;
     dispatch({ type: "DELETE_DRIVER", payload: driver.id });
     if (payDriverId === driver.id) setPayDriverId(null);
     if (historyDriverId === driver.id) setHistoryDriverId(null);
     if (detailDriverId === driver.id) setDetailDriverId(null);
+  };
+
+  const setMemberStatus = async (member: typeof members[number], status: "Active" | "Blocked" | "Removed") => {
+    setMemberBusy(member.id);
+    try {
+      await updateOwnerMemberStatus(member.id, status);
+      dispatch({ type: "UPDATE_DRIVER", payload: { id: member.id, status } });
+    } finally {
+      setMemberBusy(null);
+    }
+  };
+
+  const removeMemberPermanently = async (member: typeof members[number]) => {
+    if (!window.confirm(`Delete ${member.profile.name || "this driver"} permanently? This removes only this driver's FleetX records.`)) return;
+    setMemberBusy(member.id);
+    try {
+      await deleteOwnerMember(member.id);
+      dispatch({ type: "DELETE_DRIVER", payload: member.id });
+    } finally {
+      setMemberBusy(null);
+    }
+  };
+
+  const sendFileToMember = (member: typeof members[number], event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const payload: DriverDocument = { id: `${Date.now()}`, name: file.name, type: file.type, dataUrl: String(reader.result), uploadedAt: new Date().toISOString().slice(0, 10) };
+      void sendOwnerFile(member.id, payload);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+  const downloadDriverReport = async (driver: Driver) => {
+    const logs = driverLogs(driver.id);
+    const pays = state.driverPays.filter((pay) => pay.driverId === driver.id);
+    const absentDates = state.logs.filter((log) => driver.vehicleId && log.vehicleId === driver.vehicleId && log.driverId !== driver.id).map((log) => log.date).filter((date, index, dates) => dates.indexOf(date) === index);
+    const rows = logs.map((log) => `<tr><td>${log.date}</td><td>${state.vehicles.find((vehicle) => vehicle.id === log.vehicleId)?.name || "Vehicle"}</td><td>${log.description || "Work entry"}</td><td>₹${(driver.dailyRate || log.amount || 0).toLocaleString("en-IN")}</td></tr>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#eef1f4;font:13px Arial;color:#18202b}.sheet{width:794px;min-height:1123px;background:#fff;padding:36px}.brand{border-bottom:4px solid #f5b91d;padding-bottom:18px}.brand h1{margin:0;font-size:28px}h2{font-size:17px;border-bottom:1px solid #d7dde5;padding-bottom:7px;margin-top:24px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{border:1px solid #d7dde5;border-radius:10px;padding:12px}.card b{display:block;font-size:19px;margin-top:5px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d7dde5;padding:8px;text-align:left}th{background:#f4f6f8}td:last-child,th:last-child{text-align:right}</style></head><body><main class="sheet"><header class="brand"><h1>${state.settings.companyName || state.settings.businessName || "FleetX"} — Driver Report</h1><p>${driver.name} • ${driver.phone} • ${driver.type}</p></header><section class="grid"><div class="card">Working days<b>${new Set(logs.map((log) => log.date)).size}</b></div><div class="card">Paid<b>₹${pays.reduce((sum, pay) => sum + pay.amount, 0).toLocaleString("en-IN")}</b></div><div class="card">Daily rate<b>₹${driver.dailyRate.toLocaleString("en-IN")}</b></div></section><h2>Work Logs</h2><table><thead><tr><th>Date</th><th>Vehicle</th><th>Description</th><th>Amount</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>No work logs</td></tr>"}</tbody></table><h2>Paid History</h2><p>${pays.map((pay) => `${pay.date} — ₹${pay.amount.toLocaleString("en-IN")} — ${pay.description || "Driver payment"}`).join("<br>") || "No paid history"}</p><h2>Absent Days</h2><p>${absentDates.join(", ") || "No absent days"}</p></main></body></html>`;
+    const blob = await createHtmlPdf(html);
+    const file = new File([blob], `${driver.name.replace(/\W+/g, "-").toLowerCase()}-report.pdf`, { type: "application/pdf" });
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.name;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const driverLogs = (driverId: string) => state.logs.filter((log) => log.driverId === driverId).sort((a, b) => b.date.localeCompare(a.date));
@@ -167,6 +217,7 @@ export default function Drivers() {
                     <input type="number" required value={formData.dailyRate || ''} onChange={e => setFormData({...formData, dailyRate: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="1000" />
                   </div>
                 </div>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Owner vehicle assignment (temporary override)<select value={formData.vehicleId || ""} onChange={e => setFormData({ ...formData, vehicleId: e.target.value || undefined })} className="mt-1 w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none"><option value="">No temporary assignment</option>{state.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.regNumber})</option>)}</select></label>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
                   {editingDriverId ? "Save Changes" : "Save Driver"}
                 </button>
@@ -182,8 +233,16 @@ export default function Drivers() {
         </div>
         {members.length > 0 ? <div className="space-y-3">
           {members.map((member) => <div key={member.id} className="rounded-xl border border-border bg-card p-3">
-            <div className="flex items-start justify-between gap-3"><div><strong>{member.profile.name || "Driver"}</strong><p className="text-xs text-muted-foreground">{member.profile.phone} • {member.profile.vehicleIds.length} permitted vehicle(s)</p></div><span className="text-xs font-bold text-emerald-400">{member.profile.status || "Active"}</span></div>
+            <div className="flex items-start justify-between gap-3"><div><strong>{member.profile.name || "Driver"}</strong><p className="text-xs text-muted-foreground">{member.profile.phone} • {member.profile.vehicleIds.length} permanent vehicle(s)</p></div><span className={`text-xs font-bold ${member.profile.status === "Blocked" ? "text-amber-300" : member.profile.status === "Removed" ? "text-rose-300" : "text-emerald-400"}`}>{member.profile.status || "Active"}</span></div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a href={`tel:${member.profile.phone}`} className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300"><Phone size={13} className="mr-1 inline" />Call</a>
+              <label className="cursor-pointer rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><FileUp size={13} className="mr-1 inline" />Send file<input type="file" accept="image/*,.pdf,.doc,.docx" className="sr-only" onChange={(event) => sendFileToMember(member, event)} /></label>
+              {member.profile.status === "Blocked" ? <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Active")} className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300"><RotateCcw size={13} className="mr-1 inline" />Unblock</button> : <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Blocked")} className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-300"><Ban size={13} className="mr-1 inline" />Block</button>}
+              {member.profile.status !== "Removed" && <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Removed")} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-300"><UserMinus size={13} className="mr-1 inline" />Remove</button>}
+              <button type="button" disabled={memberBusy === member.id} onClick={() => void removeMemberPermanently(member)} className="rounded-lg border border-rose-400/30 px-3 py-2 text-xs font-bold text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete data</button>
+            </div>
             {member.profile.documents.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{member.profile.documents.map((document) => <a key={document.id} href={document.dataUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-muted px-2 py-1 text-xs font-bold text-primary">{document.name}</a>)}</div>}
+            {(member.profile.sharedFiles || []).length > 0 && <div className="mt-2 text-xs text-muted-foreground">Sent: {(member.profile.sharedFiles || []).map((file) => file.name).join(", ")}</div>}
           </div>)}
           <form onSubmit={sendInvoice} className="space-y-2 border-t border-border pt-3">
             <div className="text-xs font-black uppercase tracking-wider text-muted-foreground">Send receipt / invoice</div>
@@ -233,6 +292,9 @@ export default function Drivers() {
                  <button onClick={() => setDetailDriverId(driver.id)} className="flex-1 bg-primary/10 text-primary py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 active:bg-primary/20">
                    <CalendarDays size={16} /> Work days
                  </button>
+                  <button onClick={() => void downloadDriverReport(driver)} className="rounded-xl border border-border px-3 py-2.5 text-primary" aria-label={`Download report for ${driver.name}`}>
+                    <Download size={16} />
+                  </button>
                </div>
                <div className="flex gap-2 pt-2">
                  <button onClick={() => { setPayDriverId(driver.id); setPayAmount(driverEarned(driver.id)); }} className="flex-1 bg-primary/10 text-primary py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 active:bg-primary/20">

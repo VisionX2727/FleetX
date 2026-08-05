@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { AppState } from "@/lib/store";
-import { saveDriverProfile, type DriverMembership, type WorkspaceResponse } from "@/lib/workspace";
+import { deleteOwnerDriver, saveDriverProfile, sendDriverFile, setOwnerDriverStatus, updateOwnerDriver, type DriverDocument, type DriverMembership, type WorkspaceResponse } from "@/lib/workspace";
 
 export type WorkspaceRole = {
   role: "owner" | "driver";
@@ -20,6 +20,10 @@ type RoleContextValue = WorkspaceRole & {
   updateDriverProfile: (profile: DriverMembership["profile"]) => Promise<void>;
   addInvoice: (invoice: NonNullable<WorkspaceResponse["invoices"]>[number]) => void;
   removeInvoice: (invoiceId: string) => void;
+  updateOwnerMember: (memberId: string, profile: DriverMembership["profile"]) => Promise<void>;
+  updateOwnerMemberStatus: (memberId: string, status: "Active" | "Blocked" | "Removed") => Promise<void>;
+  deleteOwnerMember: (memberId: string) => Promise<void>;
+  sendOwnerFile: (memberId: string, file: DriverDocument) => Promise<void>;
 };
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -37,7 +41,23 @@ export function RoleProvider({ value, children }: { value: WorkspaceRole; childr
   const removeInvoice = (invoiceId: string) => {
     setCurrent((previous) => ({ ...previous, invoices: (previous.invoices || []).map((invoice) => invoice.id === invoiceId ? { ...invoice, revokedAt: new Date().toISOString() } : invoice) }));
   };
-  const contextValue = useMemo(() => ({ ...current, updateMember, updateDriverProfile, addInvoice, removeInvoice }), [current]);
+  const updateOwnerMember = async (memberId: string, profile: DriverMembership["profile"]) => {
+    const result = await updateOwnerDriver(current.session.access_token, memberId, profile);
+    setCurrent((previous) => ({ ...previous, members: (previous.members || []).map((member) => member.id === memberId ? result.member : member) }));
+  };
+  const updateOwnerMemberStatus = async (memberId: string, status: "Active" | "Blocked" | "Removed") => {
+    const result = await setOwnerDriverStatus(current.session.access_token, memberId, status);
+    setCurrent((previous) => ({ ...previous, members: (previous.members || []).map((member) => member.id === memberId ? result.member : member) }));
+  };
+  const deleteOwnerMember = async (memberId: string) => {
+    await deleteOwnerDriver(current.session.access_token, memberId);
+    setCurrent((previous) => ({ ...previous, members: (previous.members || []).filter((member) => member.id !== memberId) }));
+  };
+  const sendOwnerFile = async (memberId: string, file: DriverDocument) => {
+    const result = await sendDriverFile(current.session.access_token, memberId, file);
+    setCurrent((previous) => ({ ...previous, members: (previous.members || []).map((member) => member.id === memberId ? result.member : member) }));
+  };
+  const contextValue = useMemo(() => ({ ...current, updateMember, updateDriverProfile, addInvoice, removeInvoice, updateOwnerMember, updateOwnerMemberStatus, deleteOwnerMember, sendOwnerFile }), [current]);
   return <RoleContext.Provider value={contextValue}>{children}</RoleContext.Provider>;
 }
 

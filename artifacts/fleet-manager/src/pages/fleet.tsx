@@ -104,7 +104,7 @@ export default function Fleet() {
           <div className="fm-stack">
             {visibleVehicles.map((vehicle) => {
               const latestDay = state.fleetDays.filter((day) => day.vehicleId === vehicle.id).sort((a, b) => b.date.localeCompare(a.date))[0];
-              const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicle.id);
+              const assignedDriver = state.drivers.find((driver) => driver.type === "Temporary" && driver.vehicleId === vehicle.id) || state.drivers.find((driver) => driver.vehicleIds?.includes(vehicle.id) || (driver.type !== "Temporary" && driver.vehicleId === vehicle.id));
               return (
                 <article key={vehicle.id} className="fm-card fm-vehicle-card">
                   <div className="fm-vehicle-heading">
@@ -204,7 +204,7 @@ export default function Fleet() {
             if (!vehicle) return null;
             const days = state.fleetDays.filter((day) => day.vehicleId === vehicle.id).sort((a, b) => b.date.localeCompare(a.date));
             const logs = state.logs.filter((log) => log.vehicleId === vehicle.id);
-            const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicle.id);
+            const assignedDriver = state.drivers.find((driver) => driver.type === "Temporary" && driver.vehicleId === vehicle.id) || state.drivers.find((driver) => driver.vehicleIds?.includes(vehicle.id) || (driver.type !== "Temporary" && driver.vehicleId === vehicle.id));
             const revenue = logs.reduce((sum, log) => sum + log.amount, 0) + days.reduce((sum, day) => sum + day.amount, 0);
             const fuelCost = state.fuelRecords.filter((fuel) => fuel.vehicleId === vehicle.id).reduce((sum, fuel) => sum + fuel.cost, 0);
             return (

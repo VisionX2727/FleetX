@@ -67,7 +67,7 @@ export default function Logs() {
 
   const selectVehicle = (vehicleId: string) => {
     const vehicle = state.vehicles.find((item) => item.id === vehicleId);
-    const assignedDriver = state.drivers.find((driver) => driver.vehicleId === vehicleId);
+    const assignedDriver = state.drivers.find((driver) => driver.type === "Temporary" && driver.vehicleId === vehicleId) || state.drivers.find((driver) => driver.vehicleIds?.includes(vehicleId) || (driver.type !== "Temporary" && driver.vehicleId === vehicleId));
     const tripBased = vehicle?.type === "Hywa" || vehicle?.type === "Tipper";
     setFormData({
       ...formData,
@@ -231,7 +231,7 @@ export default function Logs() {
             </div>
           ) : (
               <div className="fm-stack">{state.vehicles.map((vehicle) => (
-               <button key={vehicle.id} type="button" onClick={() => { setFormData({ ...formData, date: filterDate, vehicleId: vehicle.id, driverId: state.drivers.find((driver) => driver.vehicleId === vehicle.id)?.id || "", hours: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : formData.hours || 0, trips: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0, diesel: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0 }); setIsAddOpen(true); }} className="fm-list-row text-left">
+               <button key={vehicle.id} type="button" onClick={() => { const assigned = state.drivers.find((driver) => driver.type === "Temporary" && driver.vehicleId === vehicle.id) || state.drivers.find((driver) => driver.vehicleIds?.includes(vehicle.id) || (driver.type !== "Temporary" && driver.vehicleId === vehicle.id)); setFormData({ ...formData, date: filterDate, vehicleId: vehicle.id, driverId: assigned?.id || "", hours: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : formData.hours || 0, trips: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0, diesel: vehicle.type === "Hywa" || vehicle.type === "Tipper" ? 0 : 0 }); setIsAddOpen(true); }} className="fm-list-row text-left">
                 <span><strong>{vehicle.name}</strong><small>{vehicle.type} • {vehicle.regNumber}</small></span><Plus className="text-primary" size={20} />
               </button>
             ))}</div>
