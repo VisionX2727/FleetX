@@ -93,11 +93,11 @@ Responsive mode uses both viewport width and device identity, so phones that req
 
 **How to apply:** Preserve the device marker on the app shell and the mobile override rules when changing the layout breakpoints.
 
-The supplied square FleetX logo is reserved for the pre-login loading splash and Google sign-in page; authenticated workspace screens continue using the app shell and user-configured business logo separately.
+The latest uploaded FleetX logo is reserved for the Chrome-installed app icon/PWA metadata; existing in-app splash, sign-in, and authenticated workspace visuals should not be replaced by it.
 
-**Why:** The user wants stronger product branding before authentication without replacing the business identity inside the fleet workspace.
+**Why:** The user explicitly wants the uploaded artwork to appear only as the installed-app icon and asked not to change the app UI.
 
-**How to apply:** Keep the logo asset limited to loading and sign-in surfaces unless the user explicitly requests it for an authenticated screen.
+**How to apply:** Keep the JPEG in the web app's icon/manifest links only. Preserve existing splash/login artwork and user-configured business logo behavior.
 
 Driver assignment is managed only from the Drivers section; vehicle forms do not collect driver identity, and Fleet display resolves the assigned driver from the driver-to-vehicle relationship.
 

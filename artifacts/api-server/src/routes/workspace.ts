@@ -221,32 +221,42 @@ router.post("/owner", async (req, res) => {
 
 router.put("/owner/state", async (req, res) => {
   const userId = req.authUserId!;
-  const current = await ownerWorkspace(userId);
-  if (!current) {
+  const incoming = normalizeState(req.body?.state);
+  const updated = await db.transaction(async (tx) => {
+    const current = (await tx.select().from(fleetWorkspaces).where(eq(fleetWorkspaces.ownerUserId, userId)).for("update"))[0];
+    if (!current) return null;
+    const existing = normalizeState(current.state);
+    const driverOwned = (item: AnyRecord) => item.driverId !== undefined && item.driverId !== null && String(item.driverId) !== "";
+    const mergeDriverRecords = (key: string) => {
+      const incomingItems = Array.isArray(incoming[key]) ? incoming[key] : [];
+      const existingItems = Array.isArray(existing[key]) ? existing[key] : [];
+      const incomingById = new Map(incomingItems.map((item: AnyRecord) => [String(item.id), item]));
+      const driverItems = existingItems
+        .filter(driverOwned)
+        .map((item: AnyRecord) => incomingById.get(String(item.id)) || item);
+      const newDriverItems = incomingItems.filter((item: AnyRecord) => driverOwned(item) && !existingItems.some((existingItem: AnyRecord) => String(existingItem.id) === String(item.id)));
+      return [
+        ...incomingItems.filter((item: AnyRecord) => !driverOwned(item)),
+        ...driverItems,
+        ...newDriverItems,
+      ];
+    };
+    const nextState = {
+      ...incoming,
+      // Driver-owned records are append/merge-only from the owner's full-state
+      // snapshot. A stale owner tab must never delete a driver's later log.
+      logs: mergeDriverRecords("logs"),
+      fuelRecords: mergeDriverRecords("fuelRecords"),
+      notes: mergeDriverRecords("notes"),
+      maintenanceRequests: mergeDriverRecords("maintenanceRequests"),
+    };
+    return (await tx.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId)).returning())[0];
+  });
+  if (!updated) {
     res.status(404).json({ error: "Owner workspace not found" });
     return;
   }
-  const incoming = normalizeState(req.body?.state);
-  const existing = normalizeState(current.state);
-  const driverOwned = (item: AnyRecord) => item.driverId !== undefined && item.driverId !== null && String(item.driverId) !== "";
-  const preserveDriverRecords = (key: string) => {
-    const incomingItems = Array.isArray(incoming[key]) ? incoming[key] : [];
-    const existingItems = Array.isArray(existing[key]) ? existing[key] : [];
-    const incomingDriverIds = new Set(incomingItems.filter(driverOwned).map((item: AnyRecord) => String(item.driverId)));
-    return [
-      ...incomingItems.filter((item: AnyRecord) => !driverOwned(item)),
-      ...existingItems.filter((item: AnyRecord) => driverOwned(item) && !incomingDriverIds.has(String(item.driverId))),
-    ];
-  };
-  const nextState = {
-    ...incoming,
-    logs: preserveDriverRecords("logs"),
-    fuelRecords: preserveDriverRecords("fuelRecords"),
-    notes: preserveDriverRecords("notes"),
-    maintenanceRequests: preserveDriverRecords("maintenanceRequests"),
-  };
-  const updated = await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId)).returning();
-  res.json({ state: updated[0].state });
+  res.json({ state: updated.state });
 });
 
 router.post("/join", async (req, res) => {
@@ -414,14 +424,17 @@ router.put("/driver/state", async (req, res) => {
     res.status(403).json({ error: profile(member.profile).status === "Blocked" ? "Owner blocked your driver access" : "Owner removed your driver access" });
     return;
   }
-  const workspace = await ownerWorkspace(member.ownerUserId);
-  if (!workspace) {
+  const updated = await db.transaction(async (tx) => {
+    const workspace = (await tx.select().from(fleetWorkspaces).where(eq(fleetWorkspaces.ownerUserId, member.ownerUserId)).for("update"))[0];
+    if (!workspace) return null;
+    const nextState = mergeDriverState(workspace.state, req.body?.state, member);
+    return (await tx.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, member.ownerUserId)).returning())[0];
+  });
+  if (!updated) {
     res.status(404).json({ error: "Owner workspace not found" });
     return;
   }
-  const nextState = mergeDriverState(workspace.state, req.body?.state, member);
-  const updated = await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, member.ownerUserId)).returning();
-  res.json({ state: driverState(updated[0].state, member) });
+  res.json({ state: driverState(updated.state, member) });
 });
 
 router.post("/invoices", async (req, res) => {

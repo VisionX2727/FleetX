@@ -140,12 +140,16 @@ export function StoreProvider({
   });
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const resetRequested = useRef(false);
+  const syncPending = useRef(false);
+  const syncVersion = useRef(0);
 
   useEffect(() => {
     let mounted = true;
     setCloudLoaded(false);
     if (remoteState) {
-      setState(normalizeState(remoteState));
+      // Polling can return a snapshot captured just before this tab's save.
+      // Keep the local mutation until its server write has completed.
+      if (!syncPending.current) setState(normalizeState(remoteState));
       setCloudLoaded(true);
       return () => { mounted = false; };
     }
@@ -167,7 +171,11 @@ export function StoreProvider({
   useEffect(() => {
     localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
     if (!cloudLoaded || !cloudSync) return;
+    const version = ++syncVersion.current;
+    syncPending.current = true;
+    let started = false;
     const timer = window.setTimeout(() => {
+      started = true;
       const sync = role === "driver" && accessToken
         ? saveDriverWorkspace(accessToken, state)
         : role === "owner" && accessToken
@@ -175,12 +183,19 @@ export function StoreProvider({
           : supabaseConfigured
             ? supabase.auth.updateUser({ data: { fleet_manager_data: state } })
             : Promise.resolve();
-      sync.catch((error) => {
-        console.error("Fleet cloud sync failed", error);
-      });
+      sync
+        .catch((error) => {
+          console.error("Fleet cloud sync failed", error);
+        })
+        .finally(() => {
+          if (syncVersion.current === version) syncPending.current = false;
+        });
     }, 700);
-    return () => window.clearTimeout(timer);
-  }, [state, userId, cloudLoaded, cloudSync, role, accessToken, remoteState]);
+    return () => {
+      window.clearTimeout(timer);
+      if (!started && syncVersion.current === version) syncPending.current = false;
+    };
+  }, [state, userId, cloudLoaded, cloudSync, role, accessToken]);
 
   const dispatch = (action: { type: string; payload?: any }) => {
     if (action.type === "RESET_DATA") {
