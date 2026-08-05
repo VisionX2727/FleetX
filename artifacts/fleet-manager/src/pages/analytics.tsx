@@ -29,7 +29,7 @@ export default function Analytics() {
   const totalFuel = relevantFuel.reduce((sum, fuel) => sum + fuel.cost, 0);
   const fuelLiters = relevantFuel.reduce((sum, fuel) => sum + fuel.quantity, 0) + relevantDays.reduce((sum, day) => sum + day.diesel, 0);
   const totalHours = relevantLogs.reduce((sum, log) => sum + log.hours, 0) + relevantDays.reduce((sum, day) => sum + day.hours, 0);
-  const driverCost = relevantLogs.reduce((sum, log) => sum + (state.drivers.find((driver) => driver.id === log.driverId)?.dailyRate || 0), 0);
+  const driverCost = relevantLogs.reduce((sum, log) => sum + (log.driverDailyRate ?? state.drivers.find((driver) => driver.id === log.driverId)?.dailyRate ?? 0), 0);
   const netProfit = totalRevenue - totalFuel - driverCost;
   const workingDays = new Set([...relevantLogs.map((log) => log.date), ...relevantDays.map((day) => day.date)]).size;
   const avgDay = workingDays ? Math.round(totalRevenue / workingDays) : 0;
@@ -102,7 +102,7 @@ export default function Analytics() {
             {state.vehicles.length === 0 ? <p className="fm-muted">Add a vehicle to see separate profit, fuel, and driver data.</p> : state.vehicles.map((vehicle) => {
               const vehicleRevenue = state.logs.filter((log) => log.vehicleId === vehicle.id && log.date.startsWith(month)).reduce((sum, log) => sum + log.amount, 0) + state.fleetDays.filter((day) => day.vehicleId === vehicle.id && day.date.startsWith(month)).reduce((sum, day) => sum + day.amount, 0);
               const vehicleFuel = state.fuelRecords.filter((fuel) => fuel.vehicleId === vehicle.id && fuel.date.startsWith(month)).reduce((sum, fuel) => sum + fuel.cost, 0);
-              const vehicleDrivers = state.logs.filter((log) => log.vehicleId === vehicle.id && log.date.startsWith(month)).reduce((sum, log) => sum + (state.drivers.find((driver) => driver.id === log.driverId)?.dailyRate || 0), 0);
+               const vehicleDrivers = state.logs.filter((log) => log.vehicleId === vehicle.id && log.date.startsWith(month)).reduce((sum, log) => sum + (log.driverDailyRate ?? state.drivers.find((driver) => driver.id === log.driverId)?.dailyRate ?? 0), 0);
               return <div className="fm-list-row" key={vehicle.id}><div><strong>{vehicle.name}</strong><small>Revenue ₹{vehicleRevenue.toLocaleString("en-IN")} • Fuel ₹{vehicleFuel.toLocaleString("en-IN")}</small></div><div className="fm-list-value text-primary">₹{(vehicleRevenue - vehicleFuel - vehicleDrivers).toLocaleString("en-IN")}</div></div>;
             })}
           </div>

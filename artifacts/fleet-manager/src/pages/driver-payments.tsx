@@ -8,7 +8,8 @@ export default function DriverPayments() {
   const driver = state.drivers[0];
   const paidIds = new Set(state.driverPays.flatMap((payment) => payment.logIds || []));
   const pendingLogs = state.logs.filter((log) => !paidIds.has(log.id)).sort((a, b) => b.date.localeCompare(a.date));
-  const pendingAmount = pendingLogs.reduce((sum, log) => sum + (driver?.dailyRate || log.amount || 0), 0);
+  const driverRate = (log: typeof pendingLogs[number]) => log.driverDailyRate ?? driver?.dailyRate ?? 0;
+  const pendingAmount = pendingLogs.reduce((sum, log) => sum + driverRate(log), 0);
   const paidAmount = state.driverPays.reduce((sum, payment) => sum + payment.amount, 0);
   const absentDates = (state.driverAbsentDates || []).filter((date) => date.startsWith(new Date().toISOString().slice(0, 7))).sort().reverse();
 
@@ -25,7 +26,7 @@ export default function DriverPayments() {
         </div>
         <section>
           <div className="fm-section-heading"><h2>Pending</h2><span className="text-xs text-muted-foreground">{pendingLogs.length} entries</span></div>
-          {pendingLogs.length ? <div className="space-y-2">{pendingLogs.map((log) => <div key={log.id} className="fm-list-row"><div><strong>{log.date}</strong><small>{log.description || "Work entry"}</small></div><div className="font-black text-amber-300">₹{(driver?.dailyRate || log.amount || 0).toLocaleString("en-IN")}</div></div>)}</div> : <div className="fm-card p-5 text-sm text-muted-foreground">No pending work.</div>}
+          {pendingLogs.length ? <div className="space-y-2">{pendingLogs.map((log) => <div key={log.id} className="fm-list-row"><div><strong>{log.date}</strong><small>{log.description || "Work entry"}</small></div><div className="font-black text-amber-300">₹{driverRate(log).toLocaleString("en-IN")}</div></div>)}</div> : <div className="fm-card p-5 text-sm text-muted-foreground">No pending work.</div>}
         </section>
         <section>
           <div className="fm-section-heading"><h2>Paid History</h2></div>

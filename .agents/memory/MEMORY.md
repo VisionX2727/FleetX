@@ -1,1 +1,2 @@
 - [Fleet Manager milestone](fleet-manager.md) — local-first fleet operations app with Supabase OAuth boundary and linked khata/vehicle records.
+- [Driver pay snapshots](driver-pay-snapshots.md) — driver earnings must use the rate stored on each work log, never the driver's current rate.

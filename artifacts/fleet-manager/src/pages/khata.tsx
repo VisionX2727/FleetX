@@ -28,6 +28,7 @@ export default function Khata() {
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchStart, setBatchStart] = useState("");
   const [batchEnd, setBatchEnd] = useState("");
+  const [batchMessage, setBatchMessage] = useState("");
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({
     date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash",
@@ -46,12 +47,12 @@ export default function Khata() {
       .filter((entry) => entry.customerId === customerId && entry.type === "Payment")
       .sort((a, b) => b.date.localeCompare(a.date));
 
-  const getCustomerSubtotal = (customerId: string) =>
-    getCustomerCharges(customerId).reduce((sum, entry) => sum + entry.amount, 0);
+  const getCustomerSubtotal = (customerId: string, batchId?: string) =>
+    getCustomerCharges(customerId, batchId).reduce((sum, entry) => sum + entry.amount, 0);
 
-  const getCustomerGst = (customer: Customer) =>
+  const getCustomerGst = (customer: Customer, batchId?: string) =>
     customer.addGst && state.settings.gstPercentage
-      ? Math.round(getCustomerSubtotal(customer.id) * (state.settings.gstPercentage / 100) * 100) / 100
+      ? Math.round(getCustomerSubtotal(customer.id, batchId) * (state.settings.gstPercentage / 100) * 100) / 100
       : 0;
 
   const getChargeAmount = (entry: LedgerEntry, customer: Customer) =>
@@ -84,13 +85,20 @@ export default function Khata() {
 
   const createBatch = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selected || !batchStart || !batchEnd || batchStart > batchEnd) return;
+    if (!selected || !batchStart || !batchEnd || batchStart > batchEnd) {
+      setBatchMessage("Choose a valid start and end date.");
+      return;
+    }
     const ledgerIds = state.ledgers
       .filter((entry) => entry.customerId === selected.id && entry.type === "Charge" && !entry.batchId && entry.date >= batchStart && entry.date <= batchEnd)
       .map((entry) => entry.id);
-    if (!ledgerIds.length) return;
+    if (!ledgerIds.length) {
+      setBatchMessage("No unbunched work entries were found in this date range.");
+      return;
+    }
     dispatch({ type: "ADD_KHATA_BATCH", payload: { customerId: selected.id, startDate: batchStart, endDate: batchEnd, ledgerIds } });
     setBatchOpen(false);
+    setBatchMessage("");
     setBatchStart("");
     setBatchEnd("");
   };
@@ -146,8 +154,8 @@ export default function Khata() {
     const charges = getCustomerCharges(customer.id, selectedBatchId || undefined);
     const payments = getCustomerPayments(customer.id);
     const dates = charges.map((entry) => entry.date).sort();
-    const subtotal = getCustomerSubtotal(customer.id);
-    const gstAmount = getCustomerGst(customer);
+    const subtotal = getCustomerSubtotal(customer.id, selectedBatchId || undefined);
+    const gstAmount = getCustomerGst(customer, selectedBatchId || undefined);
     const total = subtotal + gstAmount;
     const paidAmount = getReceived(customer.id);
     const balanceDue = Math.max(0, total - paidAmount);
@@ -336,7 +344,7 @@ export default function Khata() {
           ) : khataTab === "bunched" ? (
             <div className="space-y-3">{state.khataBatches.filter((batch) => batch.customerId === selected.id).length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No bunched work yet.</p> : state.khataBatches.filter((batch) => batch.customerId === selected.id).map((batch) => {
               const total = state.ledgers.filter((entry) => batch.ledgerIds.includes(entry.id)).reduce((sum, entry) => sum + getChargeAmount(entry, selected), 0);
-              return <div key={batch.id} className={`rounded-2xl border p-4 ${batch.id === selectedBatchId ? "border-primary bg-primary/10" : "border-border bg-card"}`}><button type="button" onClick={() => openBatch(batch.id)} className="w-full text-left"><div className="font-black">{selected.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button><button type="button" onClick={() => { if (window.confirm("Delete this bunched group and its work logs?")) dispatch({ type: "DELETE_KHATA_BATCH", payload: batch.id }); }} className="mt-3 text-xs font-bold text-rose-300"><Trash2 size={14} className="mr-1 inline" />Delete bunch</button></div>;
+              return <div key={batch.id} className={`rounded-2xl border p-4 ${batch.id === selectedBatchId ? "border-primary bg-primary/10" : "border-border bg-card"}`}><button type="button" onClick={() => openBatch(batch.id)} className="w-full text-left"><div className="font-black">{selected.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button><button type="button" onClick={() => { if (window.confirm("Unbundle this group? The work logs, payments, receipts, and customer details will be kept.")) dispatch({ type: "DELETE_KHATA_BATCH", payload: batch.id }); }} className="mt-3 text-xs font-bold text-rose-300"><Trash2 size={14} className="mr-1 inline" />Unbundle group</button></div>;
             })}</div>
           ) : (
             payments.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No payments received yet.</p> :
@@ -433,7 +441,7 @@ export default function Khata() {
         </DialogContent>
       </Dialog>
       <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
-        <DialogContent className="w-[90vw] max-w-md rounded-2xl"><DialogHeader><DialogTitle>Bundle customer logs</DialogTitle></DialogHeader><form onSubmit={createBatch} className="space-y-4 pt-3"><p className="text-sm text-muted-foreground">Logs in this range will leave the current work list and appear in Bunched.</p><label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Start date<input required type="date" value={batchStart} onChange={(event) => setBatchStart(event.target.value)} className="mt-1 w-full rounded-xl bg-muted p-4 font-semibold" /></label><label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">End date<input required type="date" value={batchEnd} onChange={(event) => setBatchEnd(event.target.value)} className="mt-1 w-full rounded-xl bg-muted p-4 font-semibold" /></label><button type="submit" className="w-full rounded-xl bg-primary p-4 font-black text-primary-foreground">Create Bunched Group</button></form></DialogContent>
+         <DialogContent className="w-[90vw] max-w-md rounded-2xl"><DialogHeader><DialogTitle>Bundle customer logs</DialogTitle></DialogHeader><form onSubmit={createBatch} className="space-y-4 pt-3"><p className="text-sm text-muted-foreground">Charges in this range will be grouped under Bunched. Their payments, receipts, and customer details stay intact.</p><label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Start date<input required type="date" value={batchStart} onChange={(event) => { setBatchStart(event.target.value); setBatchMessage(""); }} className="mt-1 w-full rounded-xl bg-muted p-4 font-semibold" /></label><label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">End date<input required type="date" value={batchEnd} onChange={(event) => { setBatchEnd(event.target.value); setBatchMessage(""); }} className="mt-1 w-full rounded-xl bg-muted p-4 font-semibold" /></label>{batchMessage && <p className="rounded-xl bg-amber-500/10 p-3 text-sm font-semibold text-amber-200">{batchMessage}</p>}<button type="submit" className="w-full rounded-xl bg-primary p-4 font-black text-primary-foreground">Create Bunched Group</button></form></DialogContent>
       </Dialog>
     </Layout>
   );

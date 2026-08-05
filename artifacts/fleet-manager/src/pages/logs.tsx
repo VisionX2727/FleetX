@@ -24,6 +24,7 @@ export default function Logs() {
   });
 
   const selectedVehicle = state.vehicles.find((vehicle) => vehicle.id === formData.vehicleId);
+  const selectedDriver = state.drivers.find((driver) => driver.id === formData.driverId) || state.drivers[0];
   const tripBasedVehicle = selectedVehicle?.type === "Hywa" || selectedVehicle?.type === "Tipper";
   const khataLogIds = new Set(state.ledgers.map((entry) => entry.logId).filter(Boolean));
   const filteredLogs = state.logs
@@ -204,10 +205,13 @@ export default function Logs() {
                       <input type="number" min="0" step="0.5" value={formData.hours || ''} onChange={e => setFormData({...formData, hours: Number(e.target.value), trips: 0, diesel: 0})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
                     </div>
                   )}
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Amount (₹)</label>
-                    <input type="number" min="0" value={formData.amount || ''} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="0" />
-                  </div>
+                   {role !== "driver" ? <div>
+                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Customer Work Amount (₹)</label>
+                     <input type="number" min="0" value={formData.amount || ''} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full bg-muted border-none rounded-xl p-4 font-semibold outline-none focus:ring-2 focus:ring-primary" placeholder="Owner billing amount" />
+                   </div> : <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm">
+                     <strong className="block text-primary">Driver pay: ₹{(selectedDriver?.dailyRate || 0).toLocaleString("en-IN")} per day</strong>
+                     <span className="text-muted-foreground">The owner sets this rate. Customer billing amount is not used for your pay.</span>
+                   </div>}
                 </div>
                 <button type="submit" className="w-full bg-foreground text-background font-bold p-4 rounded-xl mt-4 active:scale-95 transition-transform">
                   {editingLogId ? "Save Changes" : "Save Log"}

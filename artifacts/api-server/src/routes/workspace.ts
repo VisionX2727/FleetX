@@ -148,7 +148,13 @@ function withDriverStatus(stateValue: unknown, memberId: string, status: MemberP
   return {
     ...state,
     drivers: Array.isArray(state.drivers)
-      ? state.drivers.map((driver: AnyRecord) => String(driver.id) === memberId ? { ...driver, status } : driver)
+      ? state.drivers.map((driver: AnyRecord) => String(driver.id) === memberId
+        ? {
+          ...driver,
+          status,
+          ...(status === "Removed" ? { vehicleId: undefined, vehicleIds: [] } : {}),
+        }
+        : driver)
       : [],
   };
 }
@@ -368,7 +374,11 @@ router.post("/owner/members/:memberId/status", async (req, res) => {
     res.status(404).json({ error: "Driver not found" });
     return;
   }
-  const nextProfile = { ...profile(member.profile), status };
+   const nextProfile = {
+     ...profile(member.profile),
+     status,
+     ...(status === "Removed" ? { vehicleIds: [] } : {}),
+   };
   const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
   const nextState = withDriverStatus(owner.state, member.id, status);
   await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId));

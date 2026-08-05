@@ -12,7 +12,8 @@ export default function DriverHome() {
   const monthLogs = state.logs.filter((log) => log.date.startsWith(month));
   const workedDays = new Set(monthLogs.map((log) => log.date)).size;
   const paidIds = new Set(state.driverPays.flatMap((pay) => pay.logIds || []));
-  const pending = monthLogs.filter((log) => !paidIds.has(log.id)).reduce((sum, log) => sum + (log.amount || 0), 0);
+  const driverRate = (log: typeof monthLogs[number]) => log.driverDailyRate ?? state.drivers.find((item) => item.id === log.driverId)?.dailyRate ?? 0;
+  const pending = monthLogs.filter((log) => !paidIds.has(log.id)).reduce((sum, log) => sum + driverRate(log), 0);
   const paid = state.driverPays.filter((pay) => pay.date.startsWith(month)).reduce((sum, pay) => sum + pay.amount, 0);
   const brand = ownerSettings?.companyName || ownerSettings?.businessName || "Owner Fleet";
 

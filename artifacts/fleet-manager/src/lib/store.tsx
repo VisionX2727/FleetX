@@ -8,7 +8,7 @@ export type Vehicle = {
   insuranceExpiry?: string; fitnessExpiry?: string; pucExpiry?: string; nextService?: string; notes?: string;
 };
 export type VehicleDay = { id: string; date: string; vehicleId: string; amount: number; diesel: number; trips: number; hours: number; status: Vehicle['status']; notes?: string };
-export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; status: 'Pending' | 'Paid' };
+export type WorkLog = { id: string; date: string; vehicleId: string; driverId: string; customerId?: string; description: string; hours: number; trips?: number; diesel?: number; amount: number; driverDailyRate?: number; status: 'Pending' | 'Paid' };
 export type Customer = { id: string; name: string; phone: string; company?: string; address?: string; completed?: boolean; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; delayStartDate?: string; delayEndDate?: string; addGst?: boolean };
 export type LedgerEntry = { id: string; customerId: string; logId?: string; vehicleId?: string; batchId?: string; date: string; type: 'Charge' | 'Payment'; amount: number; description: string; paymentMode?: string };
 export type FuelRecord = { id: string; date: string; vehicleId: string; driverId: string; quantity: number; cost: number; odometer: number };
@@ -58,16 +58,21 @@ function createEntityId(prefix: string) {
 
 function normalizeState(value: Partial<AppState>): AppState {
   const fresh = cloneDefaultState();
+  const incomingDrivers = value.drivers || fresh.drivers;
+  const incomingLogs = value.logs || fresh.logs;
   return {
     ...fresh,
     ...value,
     vehicles: value.vehicles || fresh.vehicles,
     fleetDays: value.fleetDays || [],
-    logs: value.logs || fresh.logs,
+    logs: incomingLogs.map((log) => ({
+      ...log,
+      driverDailyRate: log.driverDailyRate ?? incomingDrivers.find((driver) => driver.id === log.driverId)?.dailyRate ?? 0,
+    })),
     customers: value.customers || fresh.customers,
     ledgers: value.ledgers || fresh.ledgers,
     fuelRecords: value.fuelRecords || fresh.fuelRecords,
-    drivers: value.drivers || fresh.drivers,
+    drivers: incomingDrivers,
     driverPays: value.driverPays || fresh.driverPays,
     notes: value.notes || fresh.notes,
     khataBatches: value.khataBatches || [],
@@ -207,9 +212,24 @@ export function StoreProvider({
         
         // Log Actions
         case 'ADD_LOG':
-          return { ...prev, logs: [...prev.logs, { id: createEntityId("l"), ...action.payload }] };
+          return {
+            ...prev,
+            logs: [
+              ...prev.logs,
+              {
+                id: createEntityId("l"),
+                ...action.payload,
+                driverDailyRate: action.payload.driverDailyRate ?? prev.drivers.find((driver) => driver.id === action.payload.driverId)?.dailyRate ?? 0,
+              },
+            ],
+          };
         case 'UPDATE_LOG':
-          return { ...prev, logs: prev.logs.map(l => l.id === action.payload.id ? { ...l, ...action.payload } : l) };
+          return {
+            ...prev,
+            logs: prev.logs.map((log) => log.id === action.payload.id
+              ? { ...log, ...action.payload, driverDailyRate: action.payload.driverDailyRate ?? log.driverDailyRate ?? prev.drivers.find((driver) => driver.id === (action.payload.driverId || log.driverId))?.dailyRate ?? 0 }
+              : log),
+          };
         case 'DELETE_LOG':
           return {
             ...prev,
@@ -307,11 +327,8 @@ export function StoreProvider({
             ...prev,
             khataBatches: prev.khataBatches.filter((item) => item.id !== batchId),
             ledgers: batch
-              ? prev.ledgers.filter((entry) => !batch.ledgerIds.includes(entry.id))
+              ? prev.ledgers.map((entry) => batch.ledgerIds.includes(entry.id) ? { ...entry, batchId: undefined } : entry)
               : prev.ledgers,
-            logs: batch
-              ? prev.logs.filter((log) => !batch.ledgerIds.some((ledgerId) => prev.ledgers.find((entry) => entry.id === ledgerId)?.logId === log.id))
-              : prev.logs,
           };
         }
 
