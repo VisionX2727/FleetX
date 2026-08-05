@@ -45,15 +45,13 @@ export default function Khata() {
       .filter((entry) => entry.customerId === customerId && entry.type === "Charge" && (batchId ? entry.batchId === batchId : !entry.batchId))
       .sort((a, b) => b.date.localeCompare(a.date));
 
-  const getCustomerPayments = (customerId: string) =>
+  const getCustomerPayments = (customerId: string, batchId?: string) =>
     state.ledgers
-      .filter((entry) => entry.customerId === customerId && entry.type === "Payment")
+      .filter((entry) => entry.customerId === customerId && entry.type === "Payment" && (batchId ? entry.batchId === batchId : !entry.batchId))
       .sort((a, b) => b.date.localeCompare(a.date));
 
   const getBatchPayments = (customerId: string, batchId?: string) =>
-    batchId
-      ? state.ledgers.filter((entry) => entry.customerId === customerId && entry.type === "Payment" && entry.batchId === batchId).sort((a, b) => b.date.localeCompare(a.date))
-      : getCustomerPayments(customerId);
+    getCustomerPayments(customerId, batchId);
 
   const getCustomerSubtotal = (customerId: string, batchId?: string) =>
     getCustomerCharges(customerId, batchId).reduce((sum, entry) => sum + entry.amount, 0);
@@ -66,13 +64,15 @@ export default function Khata() {
       : 0;
   };
 
+  const getBatchTotal = (customer: Customer, batchId: string) =>
+    getCustomerSubtotal(customer.id, batchId) + getCustomerGst(customer, batchId);
+
   const getChargeAmount = (entry: LedgerEntry, customer: Customer) =>
     Math.round(entry.amount * (customer.addGst && state.settings.gstPercentage ? 1 + state.settings.gstPercentage / 100 : 1) * 100) / 100;
 
   const getCustomerBalance = (customer: Customer) =>
-    state.ledgers
-      .filter((entry) => entry.customerId === customer.id)
-      .reduce((balance, entry) => entry.type === "Charge" ? balance + getChargeAmount(entry, customer) : balance - entry.amount, 0);
+    getCustomerSubtotal(customer.id) + getCustomerGst(customer)
+      - getCustomerPayments(customer.id).reduce((sum, entry) => sum + entry.amount, 0);
 
   const getReceived = (customerId: string) =>
     getCustomerPayments(customerId).reduce((sum, entry) => sum + entry.amount, 0);
@@ -259,12 +259,16 @@ export default function Khata() {
        addGst: Boolean((batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.addGst : customer.addGst) && state.settings.gstPercentage),
       paidAmount,
       balanceDue,
-      status: customer.paymentStatus === "Paid" ? "PAID" : customer.paymentStatus === "Delay" ? "DELAY" : "PENDING",
-      paymentDate: payments[0]?.date,
+       status: (batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.paymentStatus : customer.paymentStatus) === "Paid"
+         ? "PAID"
+         : (batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.paymentStatus : customer.paymentStatus) === "Delay"
+           ? "DELAY"
+           : "PENDING",
+       paymentDate: (batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.paymentDate : customer.paymentDate) || payments[0]?.date,
       paymentReference: payments[0]?.description,
       paymentMode: payments[0]?.paymentMode || "—",
-      delayStartDate: customer.delayStartDate,
-      delayEndDate: customer.delayEndDate,
+       delayStartDate: batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.delayStartDate : customer.delayStartDate,
+       delayEndDate: batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.delayEndDate : customer.delayEndDate,
     };
   };
 
@@ -388,7 +392,7 @@ export default function Khata() {
 
            {selectedBatch && <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><strong className="block text-primary">Bunched logs</strong><span className="text-muted-foreground">{selectedBatch.startDate} → {selectedBatch.endDate} • {charges.length} logs. Tap Work to view these bundled entries.</span></div>}
            {khataTab === "work" ? (
-             <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm font-black text-primary">Bunch these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
+              <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchMessage(""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-2xl border border-amber-400/60 bg-[#3a2200] p-4 text-sm font-black text-amber-200 shadow-sm">Bundle these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
               <div className="space-y-3">{charges.map((entry) => {
                 const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
                 const relatedLog = entry.logId ? state.logs.find((log) => log.id === entry.logId) : undefined;
@@ -403,7 +407,7 @@ export default function Khata() {
              <div className="space-y-3">
                 {selectedBatchIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-[#1b2d3c] p-3 shadow-xl"><strong>{selectedBatchIds.length} bunch selected</strong><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void Promise.all(selectedBatchIds.map((batchId) => { const batch = state.khataBatches.find((item) => item.id === batchId); const customer = batch ? state.customers.find((item) => item.id === batch.customerId) : undefined; return batch && customer ? downloadReceipt(customer, batch.id) : Promise.resolve(); }))} className="rounded-lg bg-primary px-3 py-2 text-xs font-black text-primary-foreground"><Download size={13} className="mr-1 inline" />Export PDF</button><button type="button" onClick={unbundleSelected} className="rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-black text-amber-200">Unbundle</button><button type="button" onClick={deleteSelectedBunchLogs} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-black text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete logs</button></div></div>}
                {state.khataBatches.filter((batch) => batch.customerId === selected.id).length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No bunched work yet.</p> : state.khataBatches.filter((batch) => batch.customerId === selected.id).map((batch) => {
-              const total = state.ledgers.filter((entry) => batch.ledgerIds.includes(entry.id)).reduce((sum, entry) => sum + getChargeAmount(entry, selected), 0);
+               const total = getBatchTotal(selected, batch.id);
                const isSelected = selectedBatchIds.includes(batch.id);
                return <div key={batch.id} onPointerDown={() => startBatchPress(batch.id)} onPointerUp={endBatchPress} onPointerCancel={endBatchPress} onContextMenu={(event) => event.preventDefault()} className={`rounded-2xl border p-4 ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card"}`}><button type="button" onClick={() => { if (suppressBatchClick.current) { suppressBatchClick.current = false; return; } if (selectedBatchIds.length > 0) toggleBatchSelection(batch.id); else openBatch(batch.id); }} className="w-full text-left"><div className="flex items-start justify-between gap-3"><div><div className="font-black">{selected.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div></div>{isSelected && <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground">Selected</span>}</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button></div>;
             })}</div>
@@ -476,7 +480,7 @@ export default function Khata() {
         <div className="rounded-2xl border border-primary/20 bg-[#3a2200] p-4 text-sm text-amber-200">ⓘ Tap a customer to open Khata.</div>
            {customerSection === "bunched" ? (state.khataBatches.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>No bunched logs yet</p></div> : <div className="space-y-3">
              {selectedBatchIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-[#1b2d3c] p-3 shadow-xl"><strong>{selectedBatchIds.length} bunch selected</strong><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void Promise.all(selectedBatchIds.map((batchId) => { const batch = state.khataBatches.find((item) => item.id === batchId); const customer = batch ? state.customers.find((item) => item.id === batch.customerId) : undefined; return batch && customer ? downloadReceipt(customer, batch.id) : Promise.resolve(); }))} className="rounded-lg bg-primary px-3 py-2 text-xs font-black text-primary-foreground"><Download size={13} className="mr-1 inline" />Export PDF</button><button type="button" onClick={unbundleSelected} className="rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-black text-amber-200">Unbundle</button><button type="button" onClick={deleteSelectedBunchLogs} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-black text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete logs</button></div></div>}
-             {state.khataBatches.map((batch) => { const customer = state.customers.find((item) => item.id === batch.customerId); if (!customer) return null; const total = state.ledgers.filter((entry) => batch.ledgerIds.includes(entry.id)).reduce((sum, entry) => sum + getChargeAmount(entry, customer), 0); const isSelected = selectedBatchIds.includes(batch.id); return <div key={batch.id} onPointerDown={() => startBatchPress(batch.id)} onPointerUp={endBatchPress} onPointerCancel={endBatchPress} onContextMenu={(event) => event.preventDefault()} className={`rounded-2xl border p-4 ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card"}`}><button type="button" onClick={() => { if (suppressBatchClick.current) { suppressBatchClick.current = false; return; } if (selectedBatchIds.length > 0) toggleBatchSelection(batch.id); else openBatch(batch.id); }} className="w-full text-left"><div className="flex items-start justify-between gap-3"><div><div className="font-black">{customer.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div></div>{isSelected && <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground">Selected</span>}</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button></div>; })}
+              {state.khataBatches.map((batch) => { const customer = state.customers.find((item) => item.id === batch.customerId); if (!customer) return null; const total = getBatchTotal(customer, batch.id); const isSelected = selectedBatchIds.includes(batch.id); return <div key={batch.id} onPointerDown={() => startBatchPress(batch.id)} onPointerUp={endBatchPress} onPointerCancel={endBatchPress} onContextMenu={(event) => event.preventDefault()} className={`rounded-2xl border p-4 ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card"}`}><button type="button" onClick={() => { if (suppressBatchClick.current) { suppressBatchClick.current = false; return; } if (selectedBatchIds.length > 0) toggleBatchSelection(batch.id); else openBatch(batch.id); }} className="w-full text-left"><div className="flex items-start justify-between gap-3"><div><div className="font-black">{customer.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div></div>{isSelected && <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground">Selected</span>}</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button></div>; })}
            </div>) :
           visibleCustomers.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>{customerSection === "completed" ? "No completed customers yet" : "No customers yet"}</p></div> :
           visibleCustomers.map((customer) => {

@@ -170,3 +170,9 @@ Driver-owned fuel records need deletion tombstones, just like work logs, because
 **Why:** Fuel records are shared through the same serialized workspace boundary, so filtering only the current client state is not enough to make deletion durable across sessions.
 
 **How to apply:** Preserve deleted fuel IDs through owner and driver merge paths whenever adding or changing fuel deletion behavior.
+
+Khata bundling must move only the selected customer’s unbunched charge logs into a date-ranged batch; later logs stay in Work, while batch payments/status/GST/receipts remain batch-scoped.
+
+**Why:** Owners need a clean current-work list after closing a period and must be able to manage historical customer periods independently without mixing newer activity or customer-level payment state.
+
+**How to apply:** Filter Work by missing batch ID, filter Bunched detail by batch ID, and use the batch’s own date range and payment fields for every bundled action.
