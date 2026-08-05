@@ -152,17 +152,6 @@ export default function Khata() {
     setBatchEnd("");
   };
 
-  const openBatchDialog = () => {
-    if (!selected) return;
-    const charges = getCustomerCharges(selected.id);
-    if (!charges.length) return;
-    navigator.vibrate?.([35, 30, 35]);
-    setBatchStart(charges.at(-1)?.date || "");
-    setBatchEnd(charges[0]?.date || "");
-    setBatchMessage("");
-    setBatchOpen(true);
-  };
-
   const deleteCustomer = (customer: Customer) => {
     if (!window.confirm(`Delete ${customer.name} and all of its Khata work and payment records?`)) return;
     dispatch({ type: "DELETE_CUSTOMER", payload: customer.id });
@@ -403,7 +392,7 @@ export default function Khata() {
 
            {selectedBatch && <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><strong className="block text-primary">Bunched logs</strong><span className="text-muted-foreground">{selectedBatch.startDate} → {selectedBatch.endDate} • {charges.length} logs. Tap Work to view these bundled entries.</span></div>}
            {khataTab === "work" ? (
-              <>{!selectedBatch && <button type="button" onClick={openBatchDialog} disabled={charges.length === 0} aria-label="Bundle these logs by date range" className="w-full cursor-pointer rounded-2xl border border-amber-400/60 bg-[#3a2200] p-4 text-sm font-black text-amber-200 shadow-sm transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50">Bundle these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
+              <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchMessage(""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-2xl border border-amber-400/60 bg-[#3a2200] p-4 text-sm font-black text-amber-200 shadow-sm">Bundle these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
               <div className="space-y-3">{charges.map((entry) => {
                 const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
                 const relatedLog = entry.logId ? state.logs.find((log) => log.id === entry.logId) : undefined;

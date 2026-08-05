@@ -7,7 +7,7 @@ import { StoreProvider, getLocalState, type AppState } from '@/lib/store';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { getWorkspace, createOwnerWorkspace, joinOwnerWorkspace, type WorkspaceResponse } from '@/lib/workspace';
 import { RoleProvider, type WorkspaceRole } from '@/lib/role';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import Home from '@/pages/home';
@@ -233,11 +233,11 @@ function AuthenticatedShell() {
     return () => { cancelled = true; };
   }, [user, session]);
 
-  const refreshWorkspace = useCallback(async () => {
+  const refreshWorkspace = async () => {
     if (!session) return;
     const latest = await getWorkspace(session.access_token);
     setWorkspace(latest);
-  }, [session]);
+  };
 
   if (loading) return <Splash />;
   if (!user || !session) return <Login />;

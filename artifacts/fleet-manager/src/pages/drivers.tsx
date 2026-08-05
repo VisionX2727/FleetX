@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, Driver } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2, Phone, Ban, RotateCcw, UserMinus, FileUp, Send, Download, Eye, Share2 } from "lucide-react";
+import { Plus, Users, IndianRupee, History, CheckCircle2, CalendarDays, UserCheck, UserX, ArrowLeft, UserRoundPlus, Pencil, Trash2, Phone, Ban, RotateCcw, UserMinus, FileUp, Send, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Link } from "wouter";
 import { useRole } from "@/lib/role";
@@ -27,9 +27,6 @@ export default function Drivers() {
   const [memberBusy, setMemberBusy] = useState<string | null>(null);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [filesHistoryOpen, setFilesHistoryOpen] = useState(false);
-  const [fileBusy, setFileBusy] = useState<string | null>(null);
-  const [fileMessage, setFileMessage] = useState("");
-  const [viewingFile, setViewingFile] = useState<DriverDocument | null>(null);
   
   const [formData, setFormData] = useState<Partial<Driver>>({
     name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: ""
@@ -82,75 +79,16 @@ export default function Drivers() {
     }
   };
 
-  const readFileForUpload = (file: File) => new Promise<{ dataUrl: string; type: string }>((resolve, reject) => {
-    const finish = (dataUrl: string, type = file.type) => resolve({ dataUrl, type });
-    if (!file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = () => finish(String(reader.result));
-      reader.onerror = () => reject(new Error("Could not read the selected file."));
-      reader.readAsDataURL(file);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const maxDimension = 1600;
-      const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const compressed = canvas.toDataURL("image/jpeg", 0.82);
-      finish(compressed, "image/jpeg");
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not decode the selected image."));
-    };
-    image.src = objectUrl;
-  });
-
-  const sendFileToMember = async (member: typeof members[number], event: React.ChangeEvent<HTMLInputElement>) => {
+  const sendFileToMember = (member: typeof members[number], event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const payload: DriverDocument = { id: `${Date.now()}`, name: file.name, type: file.type, dataUrl: String(reader.result), uploadedAt: new Date().toISOString().slice(0, 10) };
+      void sendOwnerFile(member.id, payload);
+    };
+    reader.readAsDataURL(file);
     event.target.value = "";
-    setFileBusy(member.id);
-    setFileMessage("");
-    try {
-      const prepared = await readFileForUpload(file);
-      const payload: DriverDocument = { id: `${Date.now()}`, name: file.name, type: prepared.type, dataUrl: prepared.dataUrl, uploadedAt: new Date().toISOString().slice(0, 10) };
-      await sendOwnerFile(member.id, payload);
-      setFileMessage(`${file.name} sent successfully.`);
-      setSendDialogOpen(false);
-      setFilesHistoryOpen(true);
-    } catch (error) {
-      setFileMessage(error instanceof Error ? error.message : "The file could not be sent.");
-    } finally {
-      setFileBusy(null);
-    }
-  };
-  const downloadSharedFile = async (file: DriverDocument) => {
-    const response = await fetch(file.dataUrl);
-    if (!response.ok) throw new Error("The file link has expired. Refresh the workspace and try again.");
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = file.name;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-  const shareSharedFile = async (file: DriverDocument) => {
-    const response = await fetch(file.dataUrl);
-    if (!response.ok) throw new Error("The file link has expired. Refresh the workspace and try again.");
-    const blob = await response.blob();
-    const shareable = new File([blob], file.name, { type: file.type || blob.type || "application/octet-stream" });
-    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [shareable] }))) {
-      await navigator.share({ title: file.name, files: [shareable] });
-      return;
-    }
-    await downloadSharedFile(file);
   };
   const memberForDriver = (driverId: string) => members.find((member) => member.id === driverId);
   const downloadDriverReport = async (driver: Driver) => {
@@ -391,10 +329,8 @@ export default function Drivers() {
                 <div className="border-t border-border pt-3">
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-4 text-sm font-bold text-primary">
                     <FileUp size={17} /> Choose file to send
-                    <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="sr-only" disabled={fileBusy === target.id} onChange={(event) => void sendFileToMember(target, event)} />
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => { sendFileToMember(target, event); setSendDialogOpen(false); }} />
                   </label>
-                  {fileBusy === target.id && <p className="text-center text-sm text-primary">Uploading and sending…</p>}
-                  {fileMessage && <p className={`rounded-xl p-3 text-sm ${fileMessage.includes("successfully") ? "bg-emerald-500/10 text-emerald-300" : "bg-rose-500/10 text-rose-300"}`}>{fileMessage}</p>}
                 </div>
               </div>
             );
@@ -405,23 +341,17 @@ export default function Drivers() {
         <DialogContent className="w-[92vw] max-w-md rounded-2xl">
           <DialogHeader><DialogTitle>Files history</DialogTitle></DialogHeader>
           {(() => {
-            const target = members.find((member) => member.id === detailDriverId) || members.find((member) => member.driverUserId === invoiceMemberId);
+            const target = members.find((member) => member.id === detailDriverId);
             const targetInvoices = target ? invoices.filter((invoice) => invoice.driverUserId === target.driverUserId) : [];
             const files = target?.profile.sharedFiles || [];
             return (
               <div className="space-y-3 pt-2">
-                {files.map((file) => <div key={file.id} className="flex items-center gap-2 rounded-xl bg-muted p-3 text-sm font-bold text-primary"><button type="button" onClick={() => setViewingFile(file)} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Eye size={16} /><span className="truncate">{file.name}</span><span className="ml-auto shrink-0 text-xs text-muted-foreground">{file.uploadedAt}</span></button><button type="button" aria-label={`Download ${file.name}`} onClick={() => void downloadSharedFile(file)} className="rounded-lg p-2 hover:bg-card"><Download size={16} /></button><button type="button" aria-label={`Share ${file.name}`} onClick={() => void shareSharedFile(file)} className="rounded-lg p-2 hover:bg-card"><Share2 size={16} /></button></div>)}
+                {files.map((file) => <a key={file.id} href={file.dataUrl} download={file.name} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl bg-muted p-3 text-sm font-bold text-primary"><span className="truncate">{file.name}</span><span className="ml-2 shrink-0 text-xs text-muted-foreground">{file.uploadedAt}</span></a>)}
                 {targetInvoices.map((invoice) => <div key={invoice.id} className="flex items-center justify-between rounded-xl bg-muted p-3 text-sm"><span className="truncate">{invoice.title}</span><span className={`ml-2 shrink-0 text-xs font-bold ${invoice.revokedAt ? "text-rose-300" : "text-emerald-300"}`}>{invoice.revokedAt ? "Revoked" : "Sent"}</span></div>)}
                 {!files.length && !targetInvoices.length && <p className="py-6 text-center text-sm text-muted-foreground">No files or invoices sent yet.</p>}
               </div>
             );
           })()}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={Boolean(viewingFile)} onOpenChange={(open) => !open && setViewingFile(null)}>
-        <DialogContent className="h-[88vh] w-[94vw] max-w-3xl rounded-2xl">
-          <DialogHeader><DialogTitle>{viewingFile?.name || "File"}</DialogTitle></DialogHeader>
-          {viewingFile && (viewingFile.type.startsWith("image/") ? <img src={viewingFile.dataUrl} alt={viewingFile.name} className="max-h-[74vh] w-full rounded-xl object-contain" /> : <iframe title={viewingFile.name} src={viewingFile.dataUrl} className="min-h-0 flex-1 rounded-xl border border-border bg-white" />)}
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(historyDriverId)} onOpenChange={(open) => !open && setHistoryDriverId(null)}>

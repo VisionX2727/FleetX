@@ -6,7 +6,6 @@ export type DriverDocument = {
   type: string;
   dataUrl: string;
   uploadedAt: string;
-  storagePath?: string;
 };
 
 export type DriverMembership = {
