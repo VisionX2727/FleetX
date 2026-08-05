@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { AppState } from "@/lib/store";
 import { deleteOwnerDriver, saveDriverProfile, sendDriverFile, setOwnerDriverStatus, updateOwnerDriver, type DriverDocument, type DriverMembership, type WorkspaceResponse } from "@/lib/workspace";
@@ -30,6 +30,9 @@ const RoleContext = createContext<RoleContextValue | null>(null);
 
 export function RoleProvider({ value, children }: { value: WorkspaceRole; children: ReactNode }) {
   const [current, setCurrent] = useState(value);
+  useEffect(() => {
+    setCurrent(value);
+  }, [value]);
   const updateMember = (member: DriverMembership) => setCurrent((previous) => ({ ...previous, member }));
   const updateDriverProfile = async (profile: DriverMembership["profile"]) => {
     const result = await saveDriverProfile(current.session.access_token, profile);

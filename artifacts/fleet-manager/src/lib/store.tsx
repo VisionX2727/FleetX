@@ -15,7 +15,7 @@ export type FuelRecord = { id: string; date: string; vehicleId: string; driverId
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; vehicleIds?: string[]; startDate?: string; endDate?: string; status?: 'Active' | 'Blocked' | 'Removed' };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
 export type FleetNote = { id: string; date: string; text: string; updatedAt?: string; driverId?: string };
-export type KhataBatch = { id: string; customerId: string; startDate: string; endDate: string; ledgerIds: string[]; createdAt: string };
+export type KhataBatch = { id: string; customerId: string; startDate: string; endDate: string; ledgerIds: string[]; createdAt: string; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; delayStartDate?: string; delayEndDate?: string };
 export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
@@ -162,7 +162,7 @@ export function StoreProvider({
       setCloudLoaded(true);
     });
     return () => { mounted = false; };
-  }, [userId, cloudSync]);
+  }, [userId, cloudSync, remoteState]);
 
   useEffect(() => {
     localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
@@ -231,11 +231,19 @@ export function StoreProvider({
               : log),
           };
         case 'DELETE_LOG':
-          return {
-            ...prev,
-            logs: prev.logs.filter(l => l.id !== action.payload),
-            ledgers: prev.ledgers.filter(entry => entry.logId !== action.payload),
-          };
+          {
+            const logId = action.payload;
+            const removedLedgerIds = new Set(prev.ledgers.filter((entry) => entry.logId === logId).map((entry) => entry.id));
+            const remainingBatches = prev.khataBatches
+              .map((batch) => ({ ...batch, ledgerIds: batch.ledgerIds.filter((ledgerId) => !removedLedgerIds.has(ledgerId)) }))
+              .filter((batch) => batch.ledgerIds.length > 0);
+            return {
+              ...prev,
+              logs: prev.logs.filter(l => l.id !== logId),
+              ledgers: prev.ledgers.filter(entry => entry.logId !== logId),
+              khataBatches: remainingBatches,
+            };
+          }
 
         // Customer Actions
         case 'ADD_CUSTOMER':
@@ -253,6 +261,7 @@ export function StoreProvider({
             customers: prev.customers.filter((customer) => customer.id !== customerId),
             ledgers: prev.ledgers.filter((entry) => entry.customerId !== customerId),
             logs: prev.logs.filter((log) => log.customerId !== customerId && !linkedLogIds.has(log.id)),
+            khataBatches: prev.khataBatches.filter((batch) => batch.customerId !== customerId),
           };
         }
         
@@ -262,7 +271,17 @@ export function StoreProvider({
         case 'UPDATE_LEDGER':
           return { ...prev, ledgers: prev.ledgers.map(entry => entry.id === action.payload.id ? { ...entry, ...action.payload } : entry) };
         case 'DELETE_LEDGER':
-          return { ...prev, ledgers: prev.ledgers.filter(entry => entry.id !== action.payload) };
+          {
+            const ledgerId = action.payload;
+            const remainingBatches = prev.khataBatches
+              .map((batch) => ({ ...batch, ledgerIds: batch.ledgerIds.filter((id) => id !== ledgerId) }))
+              .filter((batch) => batch.ledgerIds.length > 0);
+            return {
+              ...prev,
+              ledgers: prev.ledgers.filter(entry => entry.id !== ledgerId),
+              khataBatches: remainingBatches,
+            };
+          }
         
         // Fuel Actions
         case 'ADD_FUEL':
@@ -320,6 +339,8 @@ export function StoreProvider({
             ledgers: prev.ledgers.map((entry) => batch.ledgerIds?.includes(entry.id) ? { ...entry, batchId } : entry),
           };
           }
+        case 'UPDATE_KHATA_BATCH':
+          return { ...prev, khataBatches: prev.khataBatches.map((batch) => batch.id === action.payload.id ? { ...batch, ...action.payload } : batch) };
         case 'DELETE_KHATA_BATCH': {
           const batchId = action.payload;
           const batch = prev.khataBatches.find((item) => item.id === batchId);

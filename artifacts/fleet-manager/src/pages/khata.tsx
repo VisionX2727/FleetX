@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { useStore, Customer, LedgerEntry } from "@/lib/store";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus, Users, Phone, Download, Share2, ReceiptText, Search, Trash2,
   ArrowLeft, QrCode, CirclePlus, CheckCircle2, Clock3,
@@ -25,10 +25,13 @@ export default function Khata() {
   const [khataTab, setKhataTab] = useState<"work" | "payments" | "bunched">("work");
   const [customerSection, setCustomerSection] = useState<"active" | "completed" | "bunched">("active");
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchStart, setBatchStart] = useState("");
   const [batchEnd, setBatchEnd] = useState("");
   const [batchMessage, setBatchMessage] = useState("");
+  const batchPressTimer = useRef<number | null>(null);
+  const suppressBatchClick = useRef(false);
   const [customerData, setCustomerData] = useState<Partial<Customer>>({ name: "", phone: "", company: "" });
   const [ledgerData, setLedgerData] = useState<Partial<LedgerEntry>>({
     date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash",
@@ -46,6 +49,11 @@ export default function Khata() {
     state.ledgers
       .filter((entry) => entry.customerId === customerId && entry.type === "Payment")
       .sort((a, b) => b.date.localeCompare(a.date));
+
+  const getBatchPayments = (customerId: string, batchId?: string) =>
+    batchId
+      ? state.ledgers.filter((entry) => entry.customerId === customerId && entry.type === "Payment" && entry.batchId === batchId).sort((a, b) => b.date.localeCompare(a.date))
+      : getCustomerPayments(customerId);
 
   const getCustomerSubtotal = (customerId: string, batchId?: string) =>
     getCustomerCharges(customerId, batchId).reduce((sum, entry) => sum + entry.amount, 0);
@@ -73,6 +81,7 @@ export default function Khata() {
     setInvoicePreview("");
     setQrOpen(false);
     setReceiptActionsOpen(false);
+    setSelectedBatchIds([]);
   };
 
   const openBatch = (batchId: string) => {
@@ -80,7 +89,44 @@ export default function Khata() {
     if (!batch) return;
     setSelectedCustomer(batch.customerId);
     setSelectedBatchId(batch.id);
-    setKhataTab("bunched");
+    setKhataTab("work");
+  };
+
+  const toggleBatchSelection = (batchId: string) => {
+    setSelectedBatchIds((current) => current.includes(batchId) ? current.filter((id) => id !== batchId) : [...current, batchId]);
+  };
+
+  const startBatchPress = (batchId: string) => {
+    suppressBatchClick.current = false;
+    if (batchPressTimer.current) window.clearTimeout(batchPressTimer.current);
+    batchPressTimer.current = window.setTimeout(() => {
+      suppressBatchClick.current = true;
+      navigator.vibrate?.(50);
+      toggleBatchSelection(batchId);
+    }, 450);
+  };
+
+  const endBatchPress = () => {
+    if (batchPressTimer.current) window.clearTimeout(batchPressTimer.current);
+    batchPressTimer.current = null;
+  };
+
+  const unbundleSelected = () => {
+    if (!selectedBatchIds.length) return;
+    if (!window.confirm(`Unbundle ${selectedBatchIds.length} group(s)? Their logs, payments and customer details will stay safe.`)) return;
+    selectedBatchIds.forEach((batchId) => dispatch({ type: "DELETE_KHATA_BATCH", payload: batchId }));
+    setSelectedBatchIds([]);
+  };
+
+  const deleteSelectedBunchLogs = () => {
+    if (!selectedBatchIds.length) return;
+    const selectedBatches = state.khataBatches.filter((batch) => selectedBatchIds.includes(batch.id));
+    const ledgerIds = selectedBatches.flatMap((batch) => batch.ledgerIds);
+    const logIds = state.ledgers.filter((entry) => ledgerIds.includes(entry.id) && entry.logId).map((entry) => entry.logId as string);
+    if (!window.confirm(`Delete ${ledgerIds.length} bundled work log(s)? This removes the linked vehicle logs too.`)) return;
+    logIds.forEach((logId) => dispatch({ type: "DELETE_LOG", payload: logId }));
+    state.ledgers.filter((entry) => ledgerIds.includes(entry.id) && !entry.logId).forEach((entry) => dispatch({ type: "DELETE_LEDGER", payload: entry.id }));
+    setSelectedBatchIds([]);
   };
 
   const createBatch = (event: React.FormEvent) => {
@@ -118,7 +164,7 @@ export default function Khata() {
 
   const openPayment = () => {
     if (!selected) return;
-    setLedgerData({ date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash" });
+    setLedgerData({ date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash", batchId: selectedBatchId || undefined });
     setIsPaymentOpen(true);
   };
 
@@ -130,13 +176,15 @@ export default function Khata() {
       payload: { ...ledgerData, type: "Payment", customerId: selected.id, amount: Number(ledgerData.amount) },
     });
     setIsPaymentOpen(false);
-    setLedgerData({ date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash" });
+    setLedgerData({ date: today(), type: "Payment", amount: 0, description: "", paymentMode: "Cash", batchId: selectedBatchId || undefined });
   };
 
   const setPaymentMode = (paymentMode: string) => setLedgerData((current) => ({ ...current, paymentMode }));
 
-  const generatePaymentQr = async (customer: Customer) => {
-    const amount = Math.max(0, getCustomerBalance(customer));
+  const generatePaymentQr = async (customer: Customer, batchId = selectedBatchId) => {
+    const batchSubtotal = batchId ? getCustomerSubtotal(customer.id, batchId) + getCustomerGst(customer, batchId) : getCustomerBalance(customer);
+    const received = batchId ? getBatchPayments(customer.id, batchId).reduce((sum, payment) => sum + payment.amount, 0) : getReceived(customer.id);
+    const amount = batchId ? Math.max(0, batchSubtotal - received) : batchSubtotal;
     const upi = state.settings.upiId || "fleet-owner@upi";
     const amountPart = amount > 0 ? `&am=${amount}` : "";
     const companyName = state.settings.companyName || state.settings.businessName || "FleetX";
@@ -150,14 +198,14 @@ export default function Khata() {
     }
   };
 
-  const getInvoiceData = (customer: Customer): InvoiceData => {
-    const charges = getCustomerCharges(customer.id, selectedBatchId || undefined);
-    const payments = getCustomerPayments(customer.id);
+  const getInvoiceData = (customer: Customer, batchId = selectedBatchId): InvoiceData => {
+    const charges = getCustomerCharges(customer.id, batchId || undefined);
+    const payments = getBatchPayments(customer.id, batchId || undefined);
     const dates = charges.map((entry) => entry.date).sort();
-    const subtotal = getCustomerSubtotal(customer.id, selectedBatchId || undefined);
-    const gstAmount = getCustomerGst(customer, selectedBatchId || undefined);
+    const subtotal = getCustomerSubtotal(customer.id, batchId || undefined);
+    const gstAmount = getCustomerGst(customer, batchId || undefined);
     const total = subtotal + gstAmount;
-    const paidAmount = getReceived(customer.id);
+    const paidAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
     const balanceDue = Math.max(0, total - paidAmount);
     return {
       invoiceId: `RC-${today()}-${customer.phone.replace(/\D/g, "").slice(-4) || customer.id.slice(-4).toUpperCase()}`,
@@ -227,14 +275,15 @@ export default function Khata() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const downloadReceipt = async (customer: Customer) => {
-    const name = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-receipt.pdf`;
-    downloadBlob(await createInvoicePdf(getInvoiceData(customer)), name);
+  const downloadReceipt = async (customer: Customer, batchId = selectedBatchId) => {
+    const suffix = batchId ? `-bunch-${batchId.slice(-6)}` : "";
+    const name = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}${suffix}-receipt.pdf`;
+    downloadBlob(await createInvoicePdf(getInvoiceData(customer, batchId)), name);
   };
 
-  const shareReceipt = async (customer: Customer) => {
-    const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}-receipt.pdf`;
-    const file = new File([await createInvoicePdf(getInvoiceData(customer))], fileName, { type: "application/pdf" });
+  const shareReceipt = async (customer: Customer, batchId = selectedBatchId) => {
+    const fileName = `${customer.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "customer"}${batchId ? `-bunch-${batchId.slice(-6)}` : ""}-receipt.pdf`;
+    const file = new File([await createInvoicePdf(getInvoiceData(customer, batchId))], fileName, { type: "application/pdf" });
     if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       try {
         await navigator.share({ title: "Receipt", text: `Receipt for ${customer.name}`, files: [file] });
@@ -276,10 +325,12 @@ export default function Khata() {
 
   if (selected) {
     const charges = getCustomerCharges(selected.id, selectedBatchId || undefined);
-    const payments = getCustomerPayments(selected.id);
-    const subtotal = getCustomerSubtotal(selected.id);
-    const balance = Math.max(0, getCustomerBalance(selected));
-    const paid = selected.paymentStatus === "Paid";
+    const payments = getBatchPayments(selected.id, selectedBatchId || undefined);
+    const subtotal = getCustomerSubtotal(selected.id, selectedBatchId || undefined);
+    const total = subtotal + getCustomerGst(selected, selectedBatchId || undefined);
+    const balance = Math.max(0, total - payments.reduce((sum, payment) => sum + payment.amount, 0));
+    const paid = selectedBatch ? selectedBatch.paymentStatus === "Paid" : selected.paymentStatus === "Paid";
+    const delayed = selectedBatch ? selectedBatch.paymentStatus === "Delay" : selected.paymentStatus === "Delay";
     return (
       <Layout>
         <div className="fm-page-header">
@@ -294,33 +345,33 @@ export default function Khata() {
         </div>
         <div className="px-5 py-5 pb-24 space-y-4">
           <section className="fm-card p-4">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div><div className="break-all text-lg font-black leading-tight text-primary">₹{(subtotal + getCustomerGst(selected)).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Total Work</div></div>
-              <div><div className="break-all text-lg font-black leading-tight text-emerald-400">₹{getReceived(selected.id).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Received</div></div>
+             <div className="grid grid-cols-3 gap-2 text-center">
+               <div><div className="break-all text-lg font-black leading-tight text-primary">₹{(subtotal + getCustomerGst(selected, selectedBatchId || undefined)).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">{selectedBatch ? "Bunch Total" : "Total Work"}</div></div>
+               <div><div className="break-all text-lg font-black leading-tight text-emerald-400">₹{payments.reduce((sum, payment) => sum + payment.amount, 0).toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Received</div></div>
               <div><div className="break-all text-lg font-black leading-tight text-rose-400">₹{balance.toLocaleString("en-IN")}</div><div className="text-xs text-muted-foreground">Outstanding</div></div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-               <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
-              <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: selected.paymentStatus === "Delay" ? undefined : "Delay", delayStartDate: selected.paymentStatus === "Delay" ? undefined : today(), delayEndDate: selected.paymentStatus === "Delay" ? undefined : today() } })} className={`rounded-2xl p-3 font-bold ${selected.paymentStatus === "Delay" ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
+               <button type="button" onClick={() => selectedBatch ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } }) : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: paid ? undefined : "Paid", paymentDate: paid ? undefined : today() } })} className={`rounded-2xl p-3 font-bold transition-colors ${paid ? "bg-emerald-500 text-white" : "border border-emerald-400 bg-transparent text-emerald-400"}`}><CheckCircle2 className="inline mr-1" size={18} /> Paid</button>
+               <button type="button" onClick={() => selectedBatch ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, paymentStatus: delayed ? undefined : "Delay", delayStartDate: delayed ? undefined : today(), delayEndDate: delayed ? undefined : today() } }) : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, paymentStatus: delayed ? undefined : "Delay", delayStartDate: delayed ? undefined : today(), delayEndDate: delayed ? undefined : today() } })} className={`rounded-2xl p-3 font-bold ${delayed ? "bg-amber-500/20 text-amber-300" : "border border-amber-400/50 bg-transparent text-amber-300"}`}><Clock3 className="inline mr-1" size={18} /> Delay</button>
             </div>
           </section>
 
-          {selected.paymentStatus === "Delay" && <section className="fm-card grid grid-cols-2 gap-3 p-4">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay from<input type="date" value={selected.delayStartDate || ""} onChange={(event) => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayStartDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay until<input type="date" value={selected.delayEndDate || ""} onChange={(event) => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayEndDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
+           {delayed && <section className="fm-card grid grid-cols-2 gap-3 p-4">
+             <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay from<input type="date" value={(selectedBatch ? selectedBatch.delayStartDate : selected.delayStartDate) || ""} onChange={(event) => selectedBatch ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, delayStartDate: event.target.value } }) : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayStartDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
+             <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay until<input type="date" value={(selectedBatch ? selectedBatch.delayEndDate : selected.delayEndDate) || ""} onChange={(event) => selectedBatch ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, delayEndDate: event.target.value } }) : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayEndDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
           </section>}
 
-          {state.settings.gstPercentage ? (
+           {state.settings.gstPercentage ? (
             <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, addGst: !selected.addGst } })} className={`w-full rounded-xl border p-3 text-left text-sm font-bold ${selected.addGst ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-border bg-card text-muted-foreground"}`}>
               <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-current">{selected.addGst ? "✓" : ""}</span>
-              Add GST ({state.settings.gstPercentage}%) {selected.addGst ? `• ₹${getCustomerGst(selected).toLocaleString("en-IN")} added` : ""}
+               Add GST ({state.settings.gstPercentage}%) {selected.addGst ? `• ₹${getCustomerGst(selected, selectedBatchId || undefined).toLocaleString("en-IN")} added` : ""}
             </button>
           ) : null}
 
           <div className="grid grid-cols-3 gap-3">
-            <button type="button" onClick={() => void generatePaymentQr(selected)} className="rounded-2xl bg-primary p-3 text-sm font-bold text-primary-foreground"><QrCode className="mx-auto mb-1" size={19} />Pay QR</button>
+             <button type="button" onClick={() => void generatePaymentQr(selected, selectedBatchId)} className="rounded-2xl bg-primary p-3 text-sm font-bold text-primary-foreground"><QrCode className="mx-auto mb-1" size={19} />Pay QR</button>
             <button type="button" onClick={openPayment} className="rounded-2xl bg-blue-500 p-3 text-sm font-bold text-white"><CirclePlus className="mx-auto mb-1" size={19} />Payment</button>
-            <button type="button" onClick={() => setReceiptActionsOpen(true)} className="rounded-2xl bg-violet-500 p-3 text-sm font-bold text-white"><ReceiptText className="mx-auto mb-1" size={19} />Receipt</button>
+             <button type="button" onClick={() => setReceiptActionsOpen(true)} className="rounded-2xl bg-violet-500 p-3 text-sm font-bold text-white"><ReceiptText className="mx-auto mb-1" size={19} />Receipt</button>
           </div>
 
           <div className="grid grid-cols-3 border-b border-border">
@@ -329,7 +380,8 @@ export default function Khata() {
             <button type="button" onClick={() => setKhataTab("bunched")} className={`py-3 text-sm font-bold ${khataTab === "bunched" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}>Bunched ({state.khataBatches.filter((batch) => batch.customerId === selected.id).length})</button>
           </div>
 
-          {khataTab === "work" ? (
+           {selectedBatch && <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><strong className="block text-primary">Bunched logs</strong><span className="text-muted-foreground">{selectedBatch.startDate} → {selectedBatch.endDate} • {charges.length} logs. Tap Work to view these bundled entries.</span></div>}
+           {khataTab === "work" ? (
             <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm font-black text-primary">Bundle these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
               <div className="space-y-3">{charges.map((entry) => {
                 const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
@@ -341,10 +393,13 @@ export default function Khata() {
                   <div className="flex items-center gap-3"><span className="font-black text-primary">₹{getChargeAmount(entry, selected).toLocaleString("en-IN")}</span><button type="button" aria-label="Delete work entry" onClick={() => { if (window.confirm("Delete this Khata work entry?")) entry.logId ? dispatch({ type: "DELETE_LOG", payload: entry.logId }) : dispatch({ type: "DELETE_LEDGER", payload: entry.id }); }} className="text-rose-300"><Trash2 size={16} /></button></div>
                 </div>;
                 })}</div>}</>
-          ) : khataTab === "bunched" ? (
-            <div className="space-y-3">{state.khataBatches.filter((batch) => batch.customerId === selected.id).length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No bunched work yet.</p> : state.khataBatches.filter((batch) => batch.customerId === selected.id).map((batch) => {
+           ) : khataTab === "bunched" ? (
+             <div className="space-y-3">
+                {selectedBatchIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-[#1b2d3c] p-3 shadow-xl"><strong>{selectedBatchIds.length} bunch selected</strong><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void Promise.all(selectedBatchIds.map((batchId) => { const batch = state.khataBatches.find((item) => item.id === batchId); const customer = batch ? state.customers.find((item) => item.id === batch.customerId) : undefined; return batch && customer ? downloadReceipt(customer, batch.id) : Promise.resolve(); }))} className="rounded-lg bg-primary px-3 py-2 text-xs font-black text-primary-foreground"><Download size={13} className="mr-1 inline" />Export PDF</button><button type="button" onClick={unbundleSelected} className="rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-black text-amber-200">Unbundle</button><button type="button" onClick={deleteSelectedBunchLogs} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-black text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete logs</button></div></div>}
+               {state.khataBatches.filter((batch) => batch.customerId === selected.id).length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No bunched work yet.</p> : state.khataBatches.filter((batch) => batch.customerId === selected.id).map((batch) => {
               const total = state.ledgers.filter((entry) => batch.ledgerIds.includes(entry.id)).reduce((sum, entry) => sum + getChargeAmount(entry, selected), 0);
-              return <div key={batch.id} className={`rounded-2xl border p-4 ${batch.id === selectedBatchId ? "border-primary bg-primary/10" : "border-border bg-card"}`}><button type="button" onClick={() => openBatch(batch.id)} className="w-full text-left"><div className="font-black">{selected.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button><button type="button" onClick={() => { if (window.confirm("Unbundle this group? The work logs, payments, receipts, and customer details will be kept.")) dispatch({ type: "DELETE_KHATA_BATCH", payload: batch.id }); }} className="mt-3 text-xs font-bold text-rose-300"><Trash2 size={14} className="mr-1 inline" />Unbundle group</button></div>;
+               const isSelected = selectedBatchIds.includes(batch.id);
+               return <div key={batch.id} onPointerDown={() => startBatchPress(batch.id)} onPointerUp={endBatchPress} onPointerCancel={endBatchPress} onContextMenu={(event) => event.preventDefault()} className={`rounded-2xl border p-4 ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card"}`}><button type="button" onClick={() => { if (suppressBatchClick.current) { suppressBatchClick.current = false; return; } if (selectedBatchIds.length > 0) toggleBatchSelection(batch.id); else openBatch(batch.id); }} className="w-full text-left"><div className="flex items-start justify-between gap-3"><div><div className="font-black">{selected.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div></div>{isSelected && <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground">Selected</span>}</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button></div>;
             })}</div>
           ) : (
             payments.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No payments received yet.</p> :
@@ -413,7 +468,10 @@ export default function Khata() {
        </div>
       <div className="px-5 py-5 pb-24 space-y-4">
         <div className="rounded-2xl border border-primary/20 bg-[#3a2200] p-4 text-sm text-amber-200">ⓘ Tap a customer to open Khata.</div>
-          {customerSection === "bunched" ? (state.khataBatches.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>No bunched logs yet</p></div> : <div className="space-y-3">{state.khataBatches.map((batch) => { const customer = state.customers.find((item) => item.id === batch.customerId); if (!customer) return null; return <button type="button" key={batch.id} onClick={() => openBatch(batch.id)} className="w-full rounded-2xl border border-border bg-card p-4 text-left"><div className="font-black">{customer.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div><div className="mt-1 font-black text-primary">Bunched work</div></button>; })}</div>) :
+           {customerSection === "bunched" ? (state.khataBatches.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>No bunched logs yet</p></div> : <div className="space-y-3">
+             {selectedBatchIds.length > 0 && <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-[#1b2d3c] p-3 shadow-xl"><strong>{selectedBatchIds.length} bunch selected</strong><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void Promise.all(selectedBatchIds.map((batchId) => { const batch = state.khataBatches.find((item) => item.id === batchId); const customer = batch ? state.customers.find((item) => item.id === batch.customerId) : undefined; return batch && customer ? downloadReceipt(customer, batch.id) : Promise.resolve(); }))} className="rounded-lg bg-primary px-3 py-2 text-xs font-black text-primary-foreground"><Download size={13} className="mr-1 inline" />Export PDF</button><button type="button" onClick={unbundleSelected} className="rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-black text-amber-200">Unbundle</button><button type="button" onClick={deleteSelectedBunchLogs} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-black text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete logs</button></div></div>}
+             {state.khataBatches.map((batch) => { const customer = state.customers.find((item) => item.id === batch.customerId); if (!customer) return null; const total = state.ledgers.filter((entry) => batch.ledgerIds.includes(entry.id)).reduce((sum, entry) => sum + getChargeAmount(entry, customer), 0); const isSelected = selectedBatchIds.includes(batch.id); return <div key={batch.id} onPointerDown={() => startBatchPress(batch.id)} onPointerUp={endBatchPress} onPointerCancel={endBatchPress} onContextMenu={(event) => event.preventDefault()} className={`rounded-2xl border p-4 ${isSelected ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border bg-card"}`}><button type="button" onClick={() => { if (suppressBatchClick.current) { suppressBatchClick.current = false; return; } if (selectedBatchIds.length > 0) toggleBatchSelection(batch.id); else openBatch(batch.id); }} className="w-full text-left"><div className="flex items-start justify-between gap-3"><div><div className="font-black">{customer.name}</div><div className="text-xs text-muted-foreground">{batch.startDate} → {batch.endDate} • {batch.ledgerIds.length} logs</div></div>{isSelected && <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-black text-primary-foreground">Selected</span>}</div><div className="mt-1 font-black text-primary">₹{total.toLocaleString("en-IN")}</div></button></div>; })}
+           </div>) :
           visibleCustomers.length === 0 ? <div className="fm-empty-state min-h-48 rounded-2xl border border-border bg-card"><Users size={48} /><p>{customerSection === "completed" ? "No completed customers yet" : "No customers yet"}</p></div> :
           visibleCustomers.map((customer) => {
             const total = getCustomerSubtotal(customer.id) + getCustomerGst(customer);
