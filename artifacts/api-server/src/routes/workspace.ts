@@ -7,18 +7,161 @@ const router: IRouter = Router();
 router.use(requireAuth);
 
 type AnyRecord = Record<string, any>;
+type StoredFile = {
+  id: string;
+  name: string;
+  type: string;
+  dataUrl: string;
+  uploadedAt: string;
+  storagePath?: string;
+};
 type MemberProfile = {
   name: string;
   phone: string;
   address?: string;
   vehicleIds: string[];
-  documents: Array<{ id: string; name: string; type: string; dataUrl: string; uploadedAt: string }>;
-  sharedFiles: Array<{ id: string; name: string; type: string; dataUrl: string; uploadedAt: string }>;
+  documents: StoredFile[];
+  sharedFiles: StoredFile[];
   status?: "Active" | "Blocked" | "Removed" | "Suspended";
 };
 
 function id(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
+}
+
+const storageBucket = "Fleet Manager";
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+function storageHeaders(contentType?: string) {
+  return {
+    apikey: supabaseServiceRoleKey,
+    Authorization: `Bearer ${supabaseServiceRoleKey}`,
+    ...(contentType ? { "Content-Type": contentType } : {}),
+  };
+}
+
+function storagePathUrl(path: string) {
+  return path.split("/").map((part) => encodeURIComponent(part)).join("/");
+}
+
+function decodeDataUrl(value: string, fallbackType: string) {
+  const match = value.match(/^data:([^;,]+)?;base64,(.+)$/);
+  if (!match) return null;
+  return {
+    type: match[1] || fallbackType || "application/octet-stream",
+    data: Buffer.from(match[2], "base64"),
+  };
+}
+
+function normalizedFile(value: unknown): StoredFile {
+  const input = (value && typeof value === "object" ? value : {}) as Partial<StoredFile>;
+  return {
+    id: String(input.id || id("file")),
+    name: String(input.name || "file"),
+    type: String(input.type || "application/octet-stream"),
+    dataUrl: String(input.dataUrl || ""),
+    uploadedAt: String(input.uploadedAt || new Date().toISOString().slice(0, 10)),
+    ...(input.storagePath ? { storagePath: String(input.storagePath) } : {}),
+  };
+}
+
+async function uploadFile(file: StoredFile, ownerUserId: string, memberId: string, category: "documents" | "shared") {
+  const decoded = decodeDataUrl(file.dataUrl, file.type);
+  if (file.storagePath) return { ...file, dataUrl: "" };
+  if (!decoded) return file;
+  if (!supabaseUrl || !supabaseServiceRoleKey) throw new Error("Supabase Storage is not configured");
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 100) || "file";
+  const storagePath = `fleetx/${ownerUserId}/drivers/${memberId}/${category}/${file.id}-${safeName}`;
+  const response = await fetch(
+    `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${encodeURIComponent(storageBucket)}/${storagePathUrl(storagePath)}`,
+    {
+      method: "POST",
+      headers: { ...storageHeaders(decoded.type), "x-upsert": "false" },
+      body: decoded.data,
+    },
+  );
+  if (!response.ok) throw new Error(`Supabase Storage upload failed (${response.status})`);
+  return { ...file, type: decoded.type, dataUrl: "", storagePath };
+}
+
+async function persistProfileFiles(value: unknown, ownerUserId: string, memberId: string) {
+  const next = profile(value);
+  const [documents, sharedFiles] = await Promise.all([
+    Promise.all(next.documents.map((file) => uploadFile(file, ownerUserId, memberId, "documents"))),
+    Promise.all(next.sharedFiles.map((file) => uploadFile(file, ownerUserId, memberId, "shared"))),
+  ]);
+  return { ...next, documents, sharedFiles };
+}
+
+async function signedStorageUrl(storagePath?: string) {
+  if (!storagePath || !supabaseUrl || !supabaseServiceRoleKey) return "";
+  const response = await fetch(
+    `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/sign/${encodeURIComponent(storageBucket)}/${storagePathUrl(storagePath)}`,
+    {
+      method: "POST",
+      headers: { ...storageHeaders("application/json"), "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 3600 }),
+    },
+  );
+  if (!response.ok) return "";
+  const payload = await response.json() as { signedURL?: string };
+  if (!payload.signedURL) return "";
+  return payload.signedURL.startsWith("http")
+    ? payload.signedURL
+    : `${supabaseUrl.replace(/\/$/, "")}${payload.signedURL.startsWith("/") ? "" : "/"}${payload.signedURL}`;
+}
+
+async function hydratedFile(file: StoredFile): Promise<StoredFile> {
+  if (!file.storagePath || file.dataUrl) return file;
+  return { ...file, dataUrl: await signedStorageUrl(file.storagePath) };
+}
+
+async function uploadLogo(settingsValue: unknown, ownerUserId: string) {
+  const settings = settingsValue && typeof settingsValue === "object" ? { ...(settingsValue as AnyRecord) } : {};
+  const logoUrl = typeof settings.logoUrl === "string" ? settings.logoUrl : "";
+  const existingPath = typeof settings.logoStoragePath === "string" ? settings.logoStoragePath : "";
+  const decoded = decodeDataUrl(logoUrl, "image/jpeg");
+  if (!decoded || existingPath) {
+    return { ...settings, ...(existingPath ? { logoUrl: "", logoStoragePath: existingPath } : {}) };
+  }
+  if (!supabaseUrl || !supabaseServiceRoleKey) throw new Error("Supabase Storage is not configured");
+  const storagePath = `fleetx/${ownerUserId}/branding/business-logo-${crypto.randomUUID()}`;
+  const response = await fetch(
+    `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/${encodeURIComponent(storageBucket)}/${storagePathUrl(storagePath)}`,
+    {
+      method: "POST",
+      headers: { ...storageHeaders(decoded.type), "x-upsert": "false" },
+      body: decoded.data,
+    },
+  );
+  if (!response.ok) throw new Error(`Supabase Storage logo upload failed (${response.status})`);
+  return { ...settings, logoUrl: "", logoStoragePath: storagePath };
+}
+
+async function hydratedSettings(settingsValue: unknown) {
+  const settings = settingsValue && typeof settingsValue === "object" ? { ...(settingsValue as AnyRecord) } : {};
+  const storagePath = typeof settings.logoStoragePath === "string" ? settings.logoStoragePath : "";
+  if (!storagePath) return settings;
+  return { ...settings, logoUrl: await signedStorageUrl(storagePath) };
+}
+
+async function hydratedState(value: unknown) {
+  const state = normalizeState(value);
+  return { ...state, settings: await hydratedSettings(state.settings) };
+}
+
+async function hydratedProfile(value: unknown) {
+  const next = profile(value);
+  const [documents, sharedFiles] = await Promise.all([
+    Promise.all(next.documents.map(hydratedFile)),
+    Promise.all(next.sharedFiles.map(hydratedFile)),
+  ]);
+  return { ...next, documents, sharedFiles };
+}
+
+async function memberResponse(member: typeof fleetMembers.$inferSelect) {
+  return { id: member.id, driverUserId: member.driverUserId, profile: await hydratedProfile(member.profile) };
 }
 
 function profile(value: unknown): MemberProfile {
@@ -191,7 +334,7 @@ router.get("/", async (req, res) => {
   if (owner) {
     const members = await db.select().from(fleetMembers).where(eq(fleetMembers.ownerUserId, userId));
     const invoices = await db.select().from(fleetInvoices).where(eq(fleetInvoices.ownerUserId, userId));
-    res.json({ role: "owner", ownerUserId: userId, state: owner.state, inviteCode: owner.inviteCode, members, invoices });
+    res.json({ role: "owner", ownerUserId: userId, state: await hydratedState(owner.state), inviteCode: owner.inviteCode, members: await Promise.all(members.map(memberResponse)), invoices });
     return;
   }
   const member = await memberForDriver(userId);
@@ -207,15 +350,16 @@ router.get("/", async (req, res) => {
   const memberProfile = profile(member.profile);
   const ownerState = normalizeState(workspace.state);
   const invoices = await db.select().from(fleetInvoices).where(and(eq(fleetInvoices.driverUserId, userId), eq(fleetInvoices.ownerUserId, member.ownerUserId)));
+  const hydratedMember = await memberResponse(member);
   if (memberProfile.status === "Blocked") {
-    res.json({ role: "blocked", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: [], invoices });
+    res.json({ role: "blocked", ownerUserId: member.ownerUserId, member: hydratedMember, ownerSettings: await hydratedSettings(ownerState.settings), availableVehicles: [], invoices });
     return;
   }
   if (memberProfile.status === "Removed") {
-    res.json({ role: "removed", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: [], invoices });
+    res.json({ role: "removed", ownerUserId: member.ownerUserId, member: hydratedMember, ownerSettings: await hydratedSettings(ownerState.settings), availableVehicles: [], invoices });
     return;
   }
-  res.json({ role: "driver", ownerUserId: member.ownerUserId, member, ownerSettings: ownerState.settings || {}, availableVehicles: Array.isArray(ownerState.vehicles) ? ownerState.vehicles : [], state: driverState(workspace.state, member), invoices });
+  res.json({ role: "driver", ownerUserId: member.ownerUserId, member: hydratedMember, ownerSettings: await hydratedSettings(ownerState.settings), availableVehicles: Array.isArray(ownerState.vehicles) ? ownerState.vehicles : [], state: await hydratedState(driverState(workspace.state, member)), invoices });
 });
 
 router.post("/owner", async (req, res) => {
@@ -226,20 +370,22 @@ router.post("/owner", async (req, res) => {
     return;
   }
   const current = await ownerWorkspace(userId);
-  const state = normalizeState(req.body?.state);
+  const rawState = normalizeState(req.body?.state);
+  const state = { ...rawState, settings: await uploadLogo(rawState.settings, userId) };
   const inviteCode = current?.inviteCode || Math.random().toString(36).slice(2, 8).toUpperCase();
   if (current) {
     const updated = await db.update(fleetWorkspaces).set({ state, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId)).returning();
-    res.json({ role: "owner", ownerUserId: userId, state: updated[0]?.state || state, inviteCode });
+    res.json({ role: "owner", ownerUserId: userId, state: await hydratedState(updated[0]?.state || state), inviteCode });
     return;
   }
   const created = await db.insert(fleetWorkspaces).values({ ownerUserId: userId, inviteCode, state }).returning();
-  res.json({ role: "owner", ownerUserId: userId, state: created[0].state, inviteCode });
+  res.json({ role: "owner", ownerUserId: userId, state: await hydratedState(created[0].state), inviteCode });
 });
 
 router.put("/owner/state", async (req, res) => {
   const userId = req.authUserId!;
-  const incoming = normalizeState(req.body?.state);
+  const rawIncoming = normalizeState(req.body?.state);
+  const incoming: AnyRecord = { ...rawIncoming, settings: await uploadLogo(rawIncoming.settings, userId) };
   const updated = await db.transaction(async (tx) => {
     const current = (await tx.select().from(fleetWorkspaces).where(eq(fleetWorkspaces.ownerUserId, userId)).for("update"))[0];
     if (!current) return null;
@@ -285,7 +431,7 @@ router.put("/owner/state", async (req, res) => {
     res.status(404).json({ error: "Owner workspace not found" });
     return;
   }
-  res.json({ state: updated.state });
+  res.json({ state: await hydratedState(updated.state) });
 });
 
 router.post("/join", async (req, res) => {
@@ -301,16 +447,17 @@ router.post("/join", async (req, res) => {
     res.status(409).json({ error: "This driver account is already linked to another owner" });
     return;
   }
-  const memberProfile = profile(req.body?.profile);
+  const memberId = existing?.id || id("driver");
+  const memberProfile = await persistProfileFiles(req.body?.profile, owner.ownerUserId, memberId);
   const member = existing
     ? (await db.update(fleetMembers).set({ ownerUserId: owner.ownerUserId, profile: { ...memberProfile, status: "Active" }, updatedAt: new Date() }).where(eq(fleetMembers.driverUserId, userId)).returning())[0]
-    : (await db.insert(fleetMembers).values({ id: id("driver"), ownerUserId: owner.ownerUserId, driverUserId: userId, profile: memberProfile }).returning())[0];
+    : (await db.insert(fleetMembers).values({ id: memberId, ownerUserId: owner.ownerUserId, driverUserId: userId, profile: memberProfile }).returning())[0];
   const state = normalizeState(owner.state);
   const drivers = Array.isArray(state.drivers) ? [...state.drivers] : [];
   const driver = { id: member.id, name: memberProfile.name, phone: memberProfile.phone, type: "Regular", dailyRate: 0, vehicleIds: memberProfile.vehicleIds, status: "Active" };
   const nextState: AnyRecord = { ...state, drivers: [...drivers.filter((item: AnyRecord) => String(item.id) !== member.id), driver] };
   await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, owner.ownerUserId));
-  res.json({ role: "driver", ownerUserId: owner.ownerUserId, member, ownerSettings: nextState.settings || {}, availableVehicles: Array.isArray(nextState.vehicles) ? nextState.vehicles : [], state: driverState(nextState, member), invoices: [] });
+  res.json({ role: "driver", ownerUserId: owner.ownerUserId, member: await memberResponse(member), ownerSettings: await hydratedSettings(nextState.settings), availableVehicles: Array.isArray(nextState.vehicles) ? nextState.vehicles : [], state: await hydratedState(driverState(nextState, member)), invoices: [] });
 });
 
 router.put("/driver/profile", async (req, res) => {
@@ -324,7 +471,7 @@ router.put("/driver/profile", async (req, res) => {
     res.status(403).json({ error: profile(member.profile).status === "Blocked" ? "Owner blocked your driver access" : "Owner removed your driver access" });
     return;
   }
-  const nextProfile = profile(req.body?.profile);
+  const nextProfile = await persistProfileFiles(req.body?.profile, member.ownerUserId, member.id);
   const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.driverUserId, userId)).returning())[0];
   const workspace = await ownerWorkspace(member.ownerUserId);
   if (workspace) {
@@ -336,7 +483,7 @@ router.put("/driver/profile", async (req, res) => {
     };
     await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, member.ownerUserId));
   }
-  res.json({ member: updated });
+  res.json({ member: await memberResponse(updated) });
 });
 
 router.put("/owner/members/:memberId", async (req, res) => {
@@ -352,7 +499,7 @@ router.put("/owner/members/:memberId", async (req, res) => {
     return;
   }
   const currentProfile = profile(member.profile);
-  const nextProfile = { ...currentProfile, ...profile(req.body?.profile), status: currentProfile.status };
+  const nextProfile = await persistProfileFiles({ ...currentProfile, ...profile(req.body?.profile), status: currentProfile.status }, userId, member.id);
   const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
   const state = normalizeState(owner.state);
   const nextState = {
@@ -362,7 +509,7 @@ router.put("/owner/members/:memberId", async (req, res) => {
       : [],
   };
   await db.update(fleetWorkspaces).set({ state: nextState, updatedAt: new Date() }).where(eq(fleetWorkspaces.ownerUserId, userId));
-  res.json({ member: { id: updated.id, driverUserId: updated.driverUserId, profile: profile(updated.profile) } });
+  res.json({ member: await memberResponse(updated) });
 });
 
 router.post("/owner/members/:memberId/files", async (req, res) => {
@@ -382,18 +529,19 @@ router.post("/owner/members/:memberId/files", async (req, res) => {
     res.status(400).json({ error: "A file is required" });
     return;
   }
+  const file = await uploadFile(normalizedFile({
+    id: id("file"),
+    name: String(input.name),
+    type: String(input.type || "application/octet-stream"),
+    dataUrl: String(input.dataUrl),
+    uploadedAt: new Date().toISOString().slice(0, 10),
+  }), userId, member.id, "shared");
   const nextProfile = {
     ...profile(member.profile),
-    sharedFiles: [...profile(member.profile).sharedFiles, {
-      id: id("file"),
-      name: String(input.name),
-      type: String(input.type || "application/octet-stream"),
-      dataUrl: String(input.dataUrl),
-      uploadedAt: new Date().toISOString().slice(0, 10),
-    }],
+    sharedFiles: [...profile(member.profile).sharedFiles, file],
   };
   const updated = (await db.update(fleetMembers).set({ profile: nextProfile, updatedAt: new Date() }).where(eq(fleetMembers.id, member.id)).returning())[0];
-  res.json({ member: { id: updated.id, driverUserId: updated.driverUserId, profile: profile(updated.profile) } });
+  res.json({ member: await memberResponse(updated) });
 });
 
 router.post("/owner/members/:memberId/status", async (req, res) => {

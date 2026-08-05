@@ -3,11 +3,11 @@ name: Fleet Manager milestone
 description: Durable product decisions for the Fleet Manager app.
 ---
 
-The first milestone intentionally keeps fleet records local-first while using Supabase for Google Sign-In and logout. Khata charges are linked back to work logs and vehicles so customer balances, QR amounts, receipts, and vehicle profitability can be derived from the same work entry.
+Fleet records use Supabase Postgres as the canonical shared workspace store while local storage remains a device cache. Supabase Auth handles Google Sign-In/logout, and the private Fleet Manager Storage bucket holds driver files and business logos. Khata charges remain linked to work logs and vehicles so customer balances, QR amounts, receipts, and vehicle profitability derive from the same work entry.
 
-**Why:** The user needs a usable operations tool immediately, including offline-friendly daily entry, while authentication is handled by the requested Supabase integration.
+**Why:** Owner and Driver accounts must see the same authoritative fleet data across devices, while private documents and branding assets need server-side authorization rather than browser data URLs.
 
-**How to apply:** Future persistence work should preserve the current entity relationships and replace local storage behind the store boundary rather than changing the user-facing flows.
+**How to apply:** Keep the API workspace rows as the source of truth, preserve local caching for responsiveness, store new files under owner/member-scoped Storage paths, and expose files only through short-lived signed URLs. Keep legacy data URLs readable during transition.
 
 The app now gates all routes behind Google OAuth, scopes fleet data to the authenticated Supabase user, and syncs the workspace into that user's Supabase auth metadata while retaining a user-specific local cache. Receipts use a branded invoice/project-report HTML preview and browser print/save-PDF flow, deriving customer data from Khata and owner/logo data from Settings.
 
