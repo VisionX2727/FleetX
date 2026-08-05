@@ -93,6 +93,10 @@ function mergeDriverState(ownerStateValue: unknown, incomingValue: unknown, memb
     ...(Array.isArray(ownerState.deletedLogIds) ? ownerState.deletedLogIds.map(String) : []),
     ...(Array.isArray(incoming.deletedLogIds) ? incoming.deletedLogIds.map(String) : []),
   ]);
+  const deletedFuelIds = new Set([
+    ...(Array.isArray(ownerState.deletedFuelIds) ? ownerState.deletedFuelIds.map(String) : []),
+    ...(Array.isArray(incoming.deletedFuelIds) ? incoming.deletedFuelIds.map(String) : []),
+  ]);
   const incomingLogs = Array.isArray(incoming.logs)
     ? incoming.logs.filter((log: AnyRecord) => String(log.driverId) === member.id && allowedVehicleIds.has(String(log.vehicleId)) && !deletedLogIds.has(String(log.id)))
     : [];
@@ -108,10 +112,10 @@ function mergeDriverState(ownerStateValue: unknown, incomingValue: unknown, memb
     ...incomingLogs,
   ];
   const incomingFuel = Array.isArray(incoming.fuelRecords)
-    ? incoming.fuelRecords.filter((record: AnyRecord) => String(record.driverId) === member.id && allowedVehicleIds.has(String(record.vehicleId)))
+    ? incoming.fuelRecords.filter((record: AnyRecord) => String(record.driverId) === member.id && allowedVehicleIds.has(String(record.vehicleId)) && !deletedFuelIds.has(String(record.id)))
     : [];
   const existingFuel = Array.isArray(ownerState.fuelRecords)
-    ? ownerState.fuelRecords.filter((record: AnyRecord) => String(record.driverId) !== member.id)
+    ? ownerState.fuelRecords.filter((record: AnyRecord) => String(record.driverId) !== member.id && !deletedFuelIds.has(String(record.id)))
     : [];
   const incomingNotes = Array.isArray(incoming.notes)
     ? incoming.notes.filter((note: AnyRecord) => String(note.driverId) === member.id)
@@ -139,6 +143,7 @@ function mergeDriverState(ownerStateValue: unknown, incomingValue: unknown, memb
     maintenanceRequests: [...existingMaintenance, ...incomingMaintenance],
     driverPays: [...existingDriverPays, ...incomingDriverPays],
     deletedLogIds: [...deletedLogIds],
+    deletedFuelIds: [...deletedFuelIds],
   };
 }
 
@@ -243,6 +248,10 @@ router.put("/owner/state", async (req, res) => {
       ...(Array.isArray(existing.deletedLogIds) ? existing.deletedLogIds.map(String) : []),
       ...(Array.isArray(incoming.deletedLogIds) ? incoming.deletedLogIds.map(String) : []),
     ]);
+    const deletedFuelIds = new Set([
+      ...(Array.isArray(existing.deletedFuelIds) ? existing.deletedFuelIds.map(String) : []),
+      ...(Array.isArray(incoming.deletedFuelIds) ? incoming.deletedFuelIds.map(String) : []),
+    ]);
     const driverOwned = (item: AnyRecord) => item.driverId !== undefined && item.driverId !== null && String(item.driverId) !== "";
     const mergeDriverRecords = (key: string) => {
       const incomingItems = Array.isArray(incoming[key]) ? incoming[key] : [];
@@ -262,10 +271,11 @@ router.put("/owner/state", async (req, res) => {
     const nextState = {
       ...incoming,
       deletedLogIds: [...deletedLogIds],
+      deletedFuelIds: [...deletedFuelIds],
       // Driver-owned records are append/merge-only from the owner's full-state
       // snapshot. A stale owner tab must never delete a driver's later log.
       logs: mergeDriverRecords("logs"),
-      fuelRecords: mergeDriverRecords("fuelRecords"),
+      fuelRecords: mergeDriverRecords("fuelRecords").filter((item: AnyRecord) => !deletedFuelIds.has(String(item.id))),
       notes: mergeDriverRecords("notes"),
       maintenanceRequests: mergeDriverRecords("maintenanceRequests"),
     };

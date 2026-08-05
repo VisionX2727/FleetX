@@ -38,7 +38,7 @@ export default function DriverHome() {
         </section>
         <section className="fm-card p-4">
           <div className="fm-section-heading"><h2>My Vehicles</h2><Link href="/settings">Edit</Link></div>
-          <div className="space-y-2">{state.vehicles.length ? state.vehicles.map((vehicle) => <div key={vehicle.id} className="fm-list-row"><div><strong>{vehicle.name}</strong><small>{vehicle.type} • {vehicle.regNumber}</small></div><span className="text-xs font-bold text-emerald-400">{vehicle.status}</span></div>) : <p className="text-sm text-muted-foreground">Select your vehicles in Settings.</p>}</div>
+           <div className="space-y-3">{state.vehicles.length ? state.vehicles.map((vehicle, index) => <div key={vehicle.id} className={`fm-driver-vehicle-card fm-driver-vehicle-card-${index % 4}`}><div className="fm-driver-vehicle-mark"><span>{vehicle.type.slice(0, 1)}</span></div><div className="min-w-0 flex-1"><strong className="block truncate">{vehicle.name}</strong><small className="mt-1 block truncate">{vehicle.type} • {vehicle.regNumber}</small></div><span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-black uppercase text-emerald-300">{vehicle.status}</span></div>) : <p className="text-sm text-muted-foreground">Select your vehicles in Settings.</p>}</div>
         </section>
         <section><div className="fm-section-heading"><h2>Quick Actions</h2></div><div className="fm-quick-grid">
           <Link href="/logs?action=new" className="fm-quick-action"><ClipboardList size={27} /> New Log</Link>

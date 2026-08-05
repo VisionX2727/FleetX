@@ -53,7 +53,7 @@ export default function Home() {
           <div className="fm-quick-grid">
             <Link href="/logs?action=new" className="fm-quick-action"><ClipboardList size={27} /> New Entry</Link>
             <Link href="/fuel?action=new" className="fm-quick-action"><Droplet size={27} /> Add Fuel</Link>
-            <Link href="/fleet" className="fm-quick-action"><Wrench size={27} /> Maintenance</Link>
+            <Link href="/maintenance" className="fm-quick-action"><Wrench size={27} /> Maintenance</Link>
             <Link href="/analytics" className="fm-quick-action"><BarChart3 size={27} /> Reports</Link>
             <Link href="/notes" className="fm-quick-action"><FileText size={27} /> Notes</Link>
           </div>

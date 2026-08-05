@@ -1,8 +1,8 @@
 import { Layout } from "@/components/layout";
-import { useStore, Vehicle, VehicleDay } from "@/lib/store";
+import { useStore, Vehicle } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Truck, Pen, Trash2, Wrench, CheckCircle2, CirclePause, CalendarDays, Clock3, Fuel, IndianRupee, X } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Plus, Truck, Pen, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link } from "wouter";
 
 const emptyVehicle: Partial<Vehicle> = {
@@ -11,18 +11,12 @@ const emptyVehicle: Partial<Vehicle> = {
   pucExpiry: "", nextService: "", notes: "",
 };
 
-const emptyDay: Partial<VehicleDay> = {
-  date: new Date().toISOString().split("T")[0], amount: 0, diesel: 0, trips: 0, hours: 0, status: "Active", notes: "",
-};
-
 export default function Fleet() {
   const { state, dispatch } = useStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isDayOpen, setIsDayOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Vehicle>>(emptyVehicle);
-  const [dayData, setDayData] = useState<Partial<VehicleDay>>(emptyDay);
   const [typeFilter, setTypeFilter] = useState("All");
 
   const types = ["All", "JCB", "Hywa", "Tipper", "Crane"];
@@ -48,21 +42,6 @@ export default function Fleet() {
     setIsAddOpen(false);
     setEditingId(null);
     setFormData({ ...emptyVehicle });
-  };
-
-  const openDayEntry = (vehicle: Vehicle) => {
-    const existing = state.fleetDays.find((day) => day.vehicleId === vehicle.id && day.date === new Date().toISOString().split("T")[0]);
-    setDayData(existing ? { ...existing } : { ...emptyDay, vehicleId: vehicle.id });
-    setIsDayOpen(true);
-  };
-
-  const handleDaySubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!dayData.vehicleId) return;
-    const existing = state.fleetDays.find((day) => day.id === dayData.id);
-    if (existing) dispatch({ type: "UPDATE_FLEET_DAY", payload: dayData });
-    else dispatch({ type: "ADD_FLEET_DAY", payload: dayData });
-    setIsDayOpen(false);
   };
 
   const deleteVehicle = (id: string) => {
@@ -134,7 +113,6 @@ export default function Fleet() {
                   </div>
                   <div className="fm-card-actions">
                     <button type="button" className="fm-action-button fm-action-primary" onClick={() => setDetailId(vehicle.id)}>Details</button>
-                    <button type="button" className="fm-action-button" onClick={() => openDayEntry(vehicle)}><CalendarDays size={15} /> Add Day</button>
                     <button type="button" className="fm-action-button fm-action-icon" onClick={() => openEdit(vehicle)} aria-label={`Edit ${vehicle.name}`}><Pen size={16} /></button>
                     <button type="button" className="fm-action-button fm-action-danger fm-action-icon" onClick={() => deleteVehicle(vehicle.id)} aria-label={`Delete ${vehicle.name}`}><Trash2 size={16} /></button>
                   </div>
@@ -179,24 +157,6 @@ export default function Fleet() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDayOpen} onOpenChange={setIsDayOpen}>
-        <DialogContent className="fm-dialog">
-          <DialogHeader><DialogTitle>Daily Fleet Entry</DialogTitle></DialogHeader>
-          <form onSubmit={handleDaySubmit} className="fm-form">
-            <label>Date<input type="date" required value={dayData.date || ""} onChange={(e) => setDayData({ ...dayData, date: e.target.value })} /></label>
-            <div className="fm-form-grid">
-              <label>Money (₹)<input type="number" min="0" value={dayData.amount || ""} onChange={(e) => setDayData({ ...dayData, amount: Number(e.target.value) })} placeholder="0" /></label>
-              <label>Diesel (L)<input type="number" min="0" step="0.1" value={dayData.diesel || ""} onChange={(e) => setDayData({ ...dayData, diesel: Number(e.target.value) })} placeholder="0" /></label>
-              <label>Trips<input type="number" min="0" value={dayData.trips || ""} onChange={(e) => setDayData({ ...dayData, trips: Number(e.target.value) })} placeholder="0" /></label>
-              <label>Hours<input type="number" min="0" step="0.5" value={dayData.hours || ""} onChange={(e) => setDayData({ ...dayData, hours: Number(e.target.value) })} placeholder="0" /></label>
-            </div>
-            <label>Status<select value={dayData.status} onChange={(e) => setDayData({ ...dayData, status: e.target.value as Vehicle["status"] })}><option>Active</option><option>Idle</option><option>Maintenance</option></select></label>
-            <label>Notes<textarea value={dayData.notes || ""} onChange={(e) => setDayData({ ...dayData, notes: e.target.value })} placeholder="Daily notes..." /></label>
-            <button type="submit" className="fm-primary-button fm-submit-button">Save Daily Entry</button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)}>
         <DialogContent className="fm-dialog fm-detail-dialog">
           {detailId && (() => {
@@ -212,7 +172,6 @@ export default function Fleet() {
                 <DialogHeader><DialogTitle>{vehicle.name}</DialogTitle></DialogHeader>
                 <div className="fm-detail-subtitle">{vehicle.type} <span>•</span> {vehicle.regNumber}</div>
                 <div className="fm-kpi-grid"><div><span>Revenue</span><strong>₹{revenue.toLocaleString("en-IN")}</strong></div><div><span>Fuel</span><strong>₹{fuelCost.toLocaleString("en-IN")}</strong></div><div><span>Days</span><strong>{days.length}</strong></div></div>
-                <button type="button" className="fm-primary-button" onClick={() => { setDetailId(null); openDayEntry(vehicle); }}><Plus size={18} /> Add daily work</button>
                 <h3 className="fm-section-title">Daily work history</h3>
                 <div className="fm-stack">
                   {days.length === 0 ? <p className="fm-muted">No daily entries yet.</p> : days.map((day) => <div className="fm-list-row" key={day.id}><div><strong>{day.date}</strong><small>{day.trips} trips • {day.hours} hours • {day.diesel} L diesel</small></div><div className="fm-list-value">₹{day.amount.toLocaleString("en-IN")}<span className={`fm-status ${statusClass(day.status)}`}>{day.status}</span></div></div>)}

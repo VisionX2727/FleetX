@@ -32,7 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { path: "/logs", icon: ClipboardList, label: "Logs" },
         { path: "/fuel", icon: Droplet, label: "Fuel" },
         { path: "/calculator", icon: Calculator, label: "Calc" },
-        { path: "/invoices", icon: ReceiptText, label: "Invoices" },
+        { path: "/invoices", icon: ReceiptText, label: "Invoices & Files" },
       ]
     : [
         { path: "/", icon: Home, label: "Home" },

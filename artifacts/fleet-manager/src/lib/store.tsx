@@ -15,7 +15,7 @@ export type FuelRecord = { id: string; date: string; vehicleId: string; driverId
 export type Driver = { id: string; name: string; phone: string; type: 'Regular' | 'Temporary'; dailyRate: number; vehicleId?: string; vehicleIds?: string[]; startDate?: string; endDate?: string; status?: 'Active' | 'Blocked' | 'Removed' };
 export type DriverPay = { id: string; driverId: string; date: string; amount: number; description: string; logIds?: string[] };
 export type FleetNote = { id: string; date: string; text: string; updatedAt?: string; driverId?: string };
-export type KhataBatch = { id: string; customerId: string; startDate: string; endDate: string; ledgerIds: string[]; createdAt: string; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; delayStartDate?: string; delayEndDate?: string };
+export type KhataBatch = { id: string; customerId: string; startDate: string; endDate: string; ledgerIds: string[]; createdAt: string; paymentStatus?: 'Paid' | 'Delay'; paymentDate?: string; delayStartDate?: string; delayEndDate?: string; addGst?: boolean };
 export type Settings = { businessName: string; companyName?: string; ownerName?: string; phone?: string; address?: string; email?: string; logoUrl?: string; upiId?: string; bankName?: string; gstNumber?: string; gstPercentage?: number; isLoggedIn: boolean };
 
 export type AppState = {
@@ -33,6 +33,7 @@ export type AppState = {
   maintenanceRequests?: MaintenanceRequest[];
   driverAbsentDates?: string[];
   deletedLogIds?: string[];
+  deletedFuelIds?: string[];
 };
 export type MaintenanceRequest = { id: string; vehicleId: string; driverId: string; date: string; title: string; description?: string; status: "Open" | "Resolved" };
 
@@ -52,6 +53,7 @@ const defaultState: AppState = {
   settings: defaultSettings,
   maintenanceRequests: [],
   deletedLogIds: [],
+  deletedFuelIds: [],
 };
 
 function createEntityId(prefix: string) {
@@ -82,6 +84,7 @@ function normalizeState(value: Partial<AppState>): AppState {
     maintenanceRequests: value.maintenanceRequests || [],
     driverAbsentDates: value.driverAbsentDates || [],
     deletedLogIds: value.deletedLogIds || [],
+    deletedFuelIds: value.deletedFuelIds || [],
   };
 }
 
@@ -311,6 +314,12 @@ export function StoreProvider({
         // Fuel Actions
         case 'ADD_FUEL':
           return { ...prev, fuelRecords: [...prev.fuelRecords, { id: `f${Date.now()}`, ...action.payload }] };
+        case 'DELETE_FUEL':
+          return {
+            ...prev,
+            fuelRecords: prev.fuelRecords.filter((record) => record.id !== action.payload),
+            deletedFuelIds: [...new Set([...(prev.deletedFuelIds || []), action.payload])],
+          };
 
         case 'ADD_MAINTENANCE':
           return { ...prev, maintenanceRequests: [...(prev.maintenanceRequests || []), { id: createEntityId("m"), ...action.payload }] };

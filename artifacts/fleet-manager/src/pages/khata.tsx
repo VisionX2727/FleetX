@@ -58,10 +58,13 @@ export default function Khata() {
   const getCustomerSubtotal = (customerId: string, batchId?: string) =>
     getCustomerCharges(customerId, batchId).reduce((sum, entry) => sum + entry.amount, 0);
 
-  const getCustomerGst = (customer: Customer, batchId?: string) =>
-    customer.addGst && state.settings.gstPercentage
+  const getCustomerGst = (customer: Customer, batchId?: string) => {
+    const batch = batchId ? state.khataBatches.find((item) => item.id === batchId) : undefined;
+    const addGst = batch ? batch.addGst : customer.addGst;
+    return addGst && state.settings.gstPercentage
       ? Math.round(getCustomerSubtotal(customer.id, batchId) * (state.settings.gstPercentage / 100) * 100) / 100
       : 0;
+  };
 
   const getChargeAmount = (entry: LedgerEntry, customer: Customer) =>
     Math.round(entry.amount * (customer.addGst && state.settings.gstPercentage ? 1 + state.settings.gstPercentage / 100 : 1) * 100) / 100;
@@ -211,8 +214,8 @@ export default function Khata() {
       invoiceId: `RC-${today()}-${customer.phone.replace(/\D/g, "").slice(-4) || customer.id.slice(-4).toUpperCase()}`,
       issuedAt: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
       issuedTime: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-      businessName: "",
-      companyName: state.settings.companyName || "",
+       businessName: state.settings.companyName || state.settings.businessName || "FleetX",
+      companyName: state.settings.companyName || state.settings.businessName || "FleetX",
       ownerName: state.settings.ownerName || "",
       phone: state.settings.phone || "",
       email: state.settings.email || "",
@@ -253,7 +256,7 @@ export default function Khata() {
       subtotal,
       gstPercentage: state.settings.gstPercentage || 0,
       gstAmount,
-      addGst: Boolean(customer.addGst && state.settings.gstPercentage),
+       addGst: Boolean((batchId ? state.khataBatches.find((batch) => batch.id === batchId)?.addGst : customer.addGst) && state.settings.gstPercentage),
       paidAmount,
       balanceDue,
       status: customer.paymentStatus === "Paid" ? "PAID" : customer.paymentStatus === "Delay" ? "DELAY" : "PENDING",
@@ -295,7 +298,7 @@ export default function Khata() {
     await downloadReceipt(customer);
   };
 
-  const printReceipt = (customer: Customer) => setInvoicePreview(createInvoiceHtml(getInvoiceData(customer)));
+  const printReceipt = (customer: Customer, batchId = selectedBatchId) => setInvoicePreview(createInvoiceHtml(getInvoiceData(customer, batchId || undefined)));
 
   const openPrintWindow = () => {
     if (!invoicePreview) return;
@@ -340,7 +343,7 @@ export default function Khata() {
           </button>
           <div className="flex items-center gap-2">
             <button type="button" className="fm-icon-button bg-rose-500/15 text-rose-300" onClick={() => deleteCustomer(selected)} aria-label={`Delete ${selected.name}`}><Trash2 size={19} /></button>
-            <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => void shareReceipt(selected)} aria-label="Share receipt"><Share2 size={20} /></button>
+            <button type="button" className="fm-icon-button bg-[#183660] text-white" onClick={() => void shareReceipt(selected, selectedBatchId || undefined)} aria-label="Share receipt"><Share2 size={20} /></button>
           </div>
         </div>
         <div className="px-5 py-5 pb-24 space-y-4">
@@ -361,10 +364,13 @@ export default function Khata() {
              <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Delay until<input type="date" value={(selectedBatch ? selectedBatch.delayEndDate : selected.delayEndDate) || ""} onChange={(event) => selectedBatch ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, delayEndDate: event.target.value } }) : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, delayEndDate: event.target.value } })} className="mt-1 w-full rounded-xl bg-muted p-3 text-sm font-semibold text-foreground outline-none" /></label>
           </section>}
 
-           {state.settings.gstPercentage ? (
-            <button type="button" onClick={() => dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, addGst: !selected.addGst } })} className={`w-full rounded-xl border p-3 text-left text-sm font-bold ${selected.addGst ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-border bg-card text-muted-foreground"}`}>
-              <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-current">{selected.addGst ? "✓" : ""}</span>
-               Add GST ({state.settings.gstPercentage}%) {selected.addGst ? `• ₹${getCustomerGst(selected, selectedBatchId || undefined).toLocaleString("en-IN")} added` : ""}
+             {state.settings.gstPercentage ? (
+             <button type="button" onClick={() => selectedBatch
+               ? dispatch({ type: "UPDATE_KHATA_BATCH", payload: { id: selectedBatch.id, addGst: !selectedBatch.addGst } })
+               : dispatch({ type: "UPDATE_CUSTOMER", payload: { id: selected.id, addGst: !selected.addGst } })}
+               className={`w-full rounded-xl border p-3 text-left text-sm font-bold ${((selectedBatch ? selectedBatch.addGst : selected.addGst) ? "border-emerald-400 bg-emerald-500/15 text-emerald-300" : "border-border bg-card text-muted-foreground")}`}>
+               <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-current">{(selectedBatch ? selectedBatch.addGst : selected.addGst) ? "✓" : ""}</span>
+                Add GST ({state.settings.gstPercentage}%) {(selectedBatch ? selectedBatch.addGst : selected.addGst) ? `• ₹${getCustomerGst(selected, selectedBatchId || undefined).toLocaleString("en-IN")} added` : ""}
             </button>
           ) : null}
 
@@ -382,7 +388,7 @@ export default function Khata() {
 
            {selectedBatch && <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><strong className="block text-primary">Bunched logs</strong><span className="text-muted-foreground">{selectedBatch.startDate} → {selectedBatch.endDate} • {charges.length} logs. Tap Work to view these bundled entries.</span></div>}
            {khataTab === "work" ? (
-            <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm font-black text-primary">Bundle these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
+             <>{!selectedBatch && <button type="button" onClick={() => { setBatchStart(charges.at(-1)?.date || ""); setBatchEnd(charges[0]?.date || ""); setBatchOpen(true); }} disabled={charges.length === 0} className="w-full rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm font-black text-primary">Bunch these logs by date range</button>}{charges.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No work entries yet.</p> :
               <div className="space-y-3">{charges.map((entry) => {
                 const vehicle = state.vehicles.find((item) => item.id === entry.vehicleId);
                 const relatedLog = entry.logId ? state.logs.find((log) => log.id === entry.logId) : undefined;
@@ -410,8 +416,8 @@ export default function Khata() {
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => void downloadReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Download className="mr-1 inline" size={15} />PDF</button>
-            <button type="button" onClick={() => void shareReceipt(selected)} className="rounded-xl border border-border p-3 text-sm font-bold"><Share2 className="mr-1 inline" size={15} />Share PDF</button>
+            <button type="button" onClick={() => void downloadReceipt(selected, selectedBatchId || undefined)} className="rounded-xl border border-border p-3 text-sm font-bold"><Download className="mr-1 inline" size={15} />PDF</button>
+            <button type="button" onClick={() => void shareReceipt(selected, selectedBatchId || undefined)} className="rounded-xl border border-border p-3 text-sm font-bold"><Share2 className="mr-1 inline" size={15} />Share PDF</button>
           </div>
           {invoicePreview && <div className="rounded-xl border border-border bg-white overflow-hidden"><iframe title="Receipt preview" srcDoc={invoicePreview} className="h-[520px] w-full border-0" /><button type="button" onClick={openPrintWindow} className="w-full bg-primary p-3 font-bold text-primary-foreground">Open preview &amp; print</button></div>}
         </div>
@@ -425,9 +431,9 @@ export default function Khata() {
           <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
             <DialogHeader><DialogTitle className="text-xl font-black">Receipt</DialogTitle></DialogHeader>
             <div className="grid gap-3 pt-3">
-              <button type="button" onClick={() => { setReceiptActionsOpen(false); void shareReceipt(selected); }} className="rounded-xl bg-primary p-4 font-bold text-primary-foreground"><Share2 className="mr-2 inline" size={18} />Share PDF</button>
-              <button type="button" onClick={() => { setReceiptActionsOpen(false); void downloadReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><Download className="mr-2 inline" size={18} />Download PDF</button>
-              <button type="button" onClick={() => { setReceiptActionsOpen(false); printReceipt(selected); }} className="rounded-xl border border-border p-4 font-bold"><ReceiptText className="mr-2 inline" size={18} />View Receipt</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); void shareReceipt(selected, selectedBatchId || undefined); }} className="rounded-xl bg-primary p-4 font-bold text-primary-foreground"><Share2 className="mr-2 inline" size={18} />Share PDF</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); void downloadReceipt(selected, selectedBatchId || undefined); }} className="rounded-xl border border-border p-4 font-bold"><Download className="mr-2 inline" size={18} />Download PDF</button>
+              <button type="button" onClick={() => { setReceiptActionsOpen(false); printReceipt(selected, selectedBatchId || undefined); }} className="rounded-xl border border-border p-4 font-bold"><ReceiptText className="mr-2 inline" size={18} />View Receipt</button>
             </div>
           </DialogContent>
         </Dialog>

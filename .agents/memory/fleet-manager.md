@@ -164,3 +164,9 @@ FleetX frontend builds require both `PORT` and `BASE_PATH` environment variables
 **Why:** The Vite config intentionally fails fast when either routing or port configuration is missing, while the configured Vercel build supplies both values.
 
 **How to apply:** Use the artifact/Vercel build command or provide both variables for local production builds; do not weaken the config's required routing contract.
+
+Driver-owned fuel records need deletion tombstones, just like work logs, because owner/driver full-state merges otherwise can reintroduce a deleted record from a stale snapshot.
+
+**Why:** Fuel records are shared through the same serialized workspace boundary, so filtering only the current client state is not enough to make deletion durable across sessions.
+
+**How to apply:** Preserve deleted fuel IDs through owner and driver merge paths whenever adding or changing fuel deletion behavior.

@@ -25,6 +25,7 @@ import DriverHome from '@/pages/driver-home';
 import DriverSettings from '@/pages/driver-settings';
 import DriverInvoices from '@/pages/driver-invoices';
 import DriverMaintenance from '@/pages/driver-maintenance';
+import Maintenance from '@/pages/maintenance';
 import DriverPayments from '@/pages/driver-payments';
 import splashLogo from '@assets/FleetX_1785676635299.jpeg';
 
@@ -60,6 +61,7 @@ function Router({ role }: { role: 'owner' | 'driver' }) {
       <Route path="/calculator" component={Calculator} />
       <Route path="/settings" component={Settings} />
       <Route path="/notes" component={Notes} />
+      <Route path="/maintenance" component={Maintenance} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -211,10 +213,24 @@ function AuthenticatedShell() {
     }
     setWorkspaceLoading(true);
     setWorkspaceError('');
-    void getWorkspace(session.access_token)
-      .then(setWorkspace)
-      .catch((cause) => setWorkspaceError(cause instanceof Error ? cause.message : 'Could not load workspace'))
+    let cancelled = false;
+    const loadWorkspace = async () => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const latest = await getWorkspace(session.access_token);
+          if (!cancelled) setWorkspace(latest);
+          return;
+        } catch (cause) {
+          lastError = cause;
+          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+      if (!cancelled) setWorkspaceError(lastError instanceof Error ? lastError.message : 'Could not load workspace');
+    };
+    void loadWorkspace()
       .finally(() => setWorkspaceLoading(false));
+    return () => { cancelled = true; };
   }, [user, session]);
 
   const refreshWorkspace = async () => {

@@ -172,6 +172,7 @@
   .fm-empty-state svg { @apply text-muted-foreground/50; }
   .fm-empty-state p { @apply text-base; }
   .fm-vehicle-card { @apply p-4; }
+  .fm-vehicle-card { background: linear-gradient(135deg, hsl(var(--card)) 0%, rgba(36,66,105,.8) 100%); box-shadow: 0 12px 28px rgba(0,0,0,.16); }
   .fm-vehicle-heading { @apply flex items-start gap-3; }
   .fm-vehicle-avatar { @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary; }
   .fm-grow { @apply min-w-0 flex-1; }
@@ -193,6 +194,12 @@
   .fm-action-primary { @apply bg-primary/15 text-primary; }
   .fm-action-danger { @apply bg-rose-500/10 text-rose-300; }
   .fm-action-icon { @apply max-w-10; }
+  .fm-driver-vehicle-card { @apply flex items-center gap-3 rounded-2xl border p-3 shadow-sm; background: linear-gradient(135deg, #1e3146, #122235); }
+  .fm-driver-vehicle-card-0 { @apply border-cyan-400/40; }
+  .fm-driver-vehicle-card-1 { @apply border-violet-400/40; background: linear-gradient(135deg, #292449, #17233b); }
+  .fm-driver-vehicle-card-2 { @apply border-amber-400/40; background: linear-gradient(135deg, #49351e, #202536); }
+  .fm-driver-vehicle-card-3 { @apply border-emerald-400/40; background: linear-gradient(135deg, #1e443f, #172a36); }
+  .fm-driver-vehicle-mark { @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black/20 text-lg font-black text-primary; }
   .fm-dialog { @apply fixed bottom-0 left-0 top-auto max-h-[90vh] w-full max-w-none translate-x-[-50%] translate-y-0 overflow-y-auto rounded-t-[28px] border-border bg-card p-5 pb-7 text-foreground; }
   .fm-dialog [data-slot="dialog-title"] { @apply text-2xl font-black; }
   .fm-form { @apply mt-4 space-y-4; }

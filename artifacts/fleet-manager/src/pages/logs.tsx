@@ -240,7 +240,7 @@ export default function Logs() {
       </div>
       <div className="fm-tab-row">
         <button className={`fm-tab ${activeTab === "new" ? "is-active" : ""}`} onClick={() => setActiveTab("new")}>New Entry</button>
-         <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>{role === "owner" ? "Logs Added" : "History"} ({state.logs.filter((log) => !khataLogIds.has(log.id)).length})</button>
+         <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>Logs Added ({state.logs.filter((log) => !khataLogIds.has(log.id)).length})</button>
       </div>
       {activeTab === "new" && (
         <div className="px-5 pt-6">

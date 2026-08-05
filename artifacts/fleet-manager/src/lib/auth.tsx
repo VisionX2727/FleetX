@@ -161,17 +161,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearOAuthCallbackParams();
       clearPendingPkceVerifiers();
       const redirectTo = getRedirectUrl();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-          // Always let the user choose Gmail A or Gmail B instead of reusing
-          // the currently active Google browser account.
-          queryParams: { prompt: "select_account" },
-        },
-      });
-      if (error) {
-        setAuthError(error.message);
+       try {
+         const { error } = await supabase.auth.signInWithOAuth({
+           provider: "google",
+           options: {
+             redirectTo,
+             // Always let the user choose Gmail A or Gmail B instead of reusing
+             // the currently active Google browser account.
+             queryParams: { prompt: "select_account" },
+           },
+         });
+         if (error) throw error;
+       } catch (error) {
+         setAuthError(formatAuthError(error));
         setSigningIn(false);
       }
     },

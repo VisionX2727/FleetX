@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useStore, FuelRecord } from "@/lib/store";
 import { useState } from "react";
-import { Plus, Droplet, Calendar } from "lucide-react";
+import { Plus, Droplet, Calendar, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
 import { useRole } from "@/lib/role";
@@ -105,7 +105,7 @@ export default function Fuel() {
             const vehicle = state.vehicles.find(v => v.id === log.vehicleId);
             const driver = state.drivers.find(d => d.id === log.driverId);
             return (
-              <div key={log.id} className="bg-card rounded-2xl border border-border p-4 shadow-sm flex items-center justify-between">
+              <div key={log.id} className="bg-card rounded-2xl border border-border p-4 shadow-sm flex items-center justify-between gap-3">
                 <div>
                   <h4 className="font-bold text-base">{vehicle?.name || 'Unknown'}</h4>
                   <div className="text-xs font-semibold text-muted-foreground mt-0.5">
@@ -118,6 +118,16 @@ export default function Fuel() {
                 <div className="text-right">
                   <div className="font-black text-lg text-destructive">₹{log.cost.toLocaleString()}</div>
                   <div className="text-xs font-bold text-muted-foreground mt-0.5">{log.quantity} L</div>
+                  <button
+                    type="button"
+                    aria-label={`Delete fuel record for ${vehicle?.name || "vehicle"}`}
+                    onClick={() => {
+                      if (window.confirm("Delete this fuel record?")) dispatch({ type: "DELETE_FUEL", payload: log.id });
+                    }}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border border-rose-400/40 px-2 py-1 text-[11px] font-bold text-rose-300"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
                 </div>
               </div>
             )

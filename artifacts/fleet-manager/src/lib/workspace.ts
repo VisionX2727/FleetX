@@ -31,7 +31,7 @@ export type WorkspaceResponse = {
   member?: DriverMembership;
   ownerSettings?: AppState["settings"];
   availableVehicles?: AppState["vehicles"];
-  invoices?: Array<{ id: string; title: string; html: string; revokedAt?: string | null; createdAt: string }>;
+  invoices?: Array<{ id: string; ownerUserId?: string; driverUserId?: string; title: string; html: string; revokedAt?: string | null; createdAt: string }>;
   members?: Array<{ id: string; driverUserId: string; profile: DriverMembership["profile"] }>;
 };
 

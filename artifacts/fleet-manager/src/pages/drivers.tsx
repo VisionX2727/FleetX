@@ -25,6 +25,8 @@ export default function Drivers() {
   const [invoiceTitle, setInvoiceTitle] = useState("FleetX Driver Receipt");
   const [invoiceBusy, setInvoiceBusy] = useState(false);
   const [memberBusy, setMemberBusy] = useState<string | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [filesHistoryOpen, setFilesHistoryOpen] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Driver>>({
     name: "", phone: "", type: "Regular", dailyRate: 0, vehicleId: "", startDate: new Date().toISOString().split("T")[0], endDate: ""
@@ -242,13 +244,7 @@ export default function Drivers() {
              <span className="min-w-0"><strong className="block truncate">{member.profile.name || "Driver"}</strong><span className="text-xs text-muted-foreground">{member.profile.phone} • {member.profile.vehicleIds.length} vehicle(s){member.profile.vehicleIds.length > 0 ? ` • ${member.profile.vehicleIds.map((id) => state.vehicles.find((vehicle) => vehicle.id === id)?.name || "Vehicle").join(", ")}` : ""}</span></span>
             <span className={`shrink-0 text-xs font-bold ${member.profile.status === "Blocked" ? "text-amber-300" : member.profile.status === "Removed" ? "text-rose-300" : "text-emerald-400"}`}>{member.profile.status || "Active"} <span className="ml-1 text-muted-foreground">›</span></span>
           </button>)}
-          <form onSubmit={sendInvoice} className="space-y-2 border-t border-border pt-3">
-            <div className="text-xs font-black uppercase tracking-wider text-muted-foreground">Send receipt / invoice</div>
-            <select required value={invoiceMemberId} onChange={(event) => setInvoiceMemberId(event.target.value)} className="w-full rounded-xl bg-muted p-3 font-semibold"><option value="">Select joined driver</option>{members.map((member) => <option key={member.driverUserId} value={member.driverUserId}>{member.profile.name || member.driverUserId}</option>)}</select>
-            <input value={invoiceTitle} onChange={(event) => setInvoiceTitle(event.target.value)} className="w-full rounded-xl bg-muted p-3 font-semibold" placeholder="Invoice title" />
-            <button disabled={invoiceBusy} type="submit" className="w-full rounded-xl bg-primary p-3 font-black text-primary-foreground">{invoiceBusy ? "Sending..." : "Send PDF Receipt"}</button>
-          </form>
-          {invoices.length > 0 && <div className="space-y-2 border-t border-border pt-3"><div className="text-xs font-black uppercase tracking-wider text-muted-foreground">Sent invoices</div>{invoices.map((invoice) => <div key={invoice.id} className="flex items-center justify-between gap-2 rounded-xl bg-muted p-3 text-sm"><span className="truncate">{invoice.title}</span>{invoice.revokedAt ? <span className="text-xs text-muted-foreground">Revoked</span> : <button type="button" onClick={() => void revokeInvoice(invoice.id)} className="shrink-0 text-xs font-bold text-rose-300">Revoke</button>}</div>)}</div>}
+          <p className="border-t border-border pt-3 text-xs text-muted-foreground">Open a driver to send invoices and files or review sent-file history.</p>
         </div> : <p className="text-sm text-muted-foreground">No joined drivers yet.</p>}
       </section>
       <div className="fm-tab-row">
@@ -303,7 +299,7 @@ export default function Drivers() {
                  <div className="mb-4 flex flex-wrap gap-2">
                    <a href={`tel:${displayDriver.phone}`} className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300"><Phone size={13} className="mr-1 inline" />Call</a>
                     {driver && <><button type="button" onClick={() => openEditDriver(driver)} className="rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><Pencil size={13} className="mr-1 inline" />Edit</button><button type="button" onClick={() => { setPayDriverId(driver.id); setPayAmount(driverEarned(driver.id)); }} className="rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><IndianRupee size={13} className="mr-1 inline" />Pay</button><button type="button" onClick={() => void downloadDriverReport(driver)} className="rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><Download size={13} className="mr-1 inline" />Report</button><button type="button" onClick={() => setHistoryDriverId(driver.id)} className="rounded-lg bg-muted px-3 py-2 text-xs font-bold"><History size={13} className="mr-1 inline" />Payments</button>{!member && <button type="button" onClick={() => deleteDriver(driver)} className="rounded-lg border border-rose-400/40 px-3 py-2 text-xs font-bold text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete</button>}</>}
-                   {member && <><label className="cursor-pointer rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><FileUp size={13} className="mr-1 inline" />Send file<input type="file" accept="image/*,.pdf,.doc,.docx" className="sr-only" onChange={(event) => sendFileToMember(member, event)} /></label>{member.profile.status === "Blocked" ? <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Active")} className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300"><RotateCcw size={13} className="mr-1 inline" />Unblock</button> : member.profile.status !== "Removed" && <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Blocked")} className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-300"><Ban size={13} className="mr-1 inline" />Block</button>}{member.profile.status !== "Removed" && <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Removed")} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-300"><UserMinus size={13} className="mr-1 inline" />Remove</button>}<button type="button" disabled={memberBusy === member.id} onClick={() => void removeMemberPermanently(member)} className="rounded-lg border border-rose-400/30 px-3 py-2 text-xs font-bold text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete driver</button></>}
+                    {member && <><button type="button" onClick={() => { setInvoiceMemberId(member.driverUserId); setSendDialogOpen(true); }} className="rounded-lg bg-primary/15 px-3 py-2 text-xs font-bold text-primary"><Send size={13} className="mr-1 inline" />Send invoices &amp; files</button><button type="button" onClick={() => setFilesHistoryOpen(true)} className="rounded-lg bg-muted px-3 py-2 text-xs font-bold"><History size={13} className="mr-1 inline" />Files history</button>{member.profile.status === "Blocked" ? <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Active")} className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300"><RotateCcw size={13} className="mr-1 inline" />Unblock</button> : member.profile.status !== "Removed" && <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Blocked")} className="rounded-lg bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-300"><Ban size={13} className="mr-1 inline" />Block</button>}{member.profile.status !== "Removed" && <button type="button" disabled={memberBusy === member.id} onClick={() => void setMemberStatus(member, "Removed")} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-300"><UserMinus size={13} className="mr-1 inline" />Remove</button>}<button type="button" disabled={memberBusy === member.id} onClick={() => void removeMemberPermanently(member)} className="rounded-lg border border-rose-400/30 px-3 py-2 text-xs font-bold text-rose-300"><Trash2 size={13} className="mr-1 inline" />Delete driver</button></>}
                  </div>
                   {member && <div className="mb-4 rounded-xl bg-muted p-3 text-sm"><strong>{member.profile.status || "Active"}</strong><span className="ml-2 text-muted-foreground">{member.profile.vehicleIds.length} permanent vehicle(s)</span>{vehicles.length > 0 && <div className="mt-2 text-xs font-bold text-primary">Vehicles: {vehicles.map((item) => item.name).join(", ")}</div>}{member.profile.documents.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{member.profile.documents.map((document) => <a key={document.id} href={document.dataUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-card px-2 py-1 text-xs font-bold text-primary">{document.name}</a>)}</div>}</div>}
                  <div className="fm-kpi-grid"><div><span>Worked days</span><strong>{assignedDates.size}</strong></div><div><span>Earned</span><strong>₹{driver ? driverEarned(driver.id).toLocaleString("en-IN") : "0"}</strong></div><div><span>Paid</span><strong>₹{driver ? driverPaid(driver.id).toLocaleString("en-IN") : "0"}</strong></div></div>
@@ -313,6 +309,47 @@ export default function Drivers() {
                   {absentDates.map((date) => <div className="fm-list-row" key={`absent-${date}`}><div><strong>{date}</strong><small>{vehicle?.name || "Assigned vehicle"} • another driver selected</small></div><div className="flex items-center gap-1 text-xs font-black text-rose-300"><UserX size={14} /> Absent</div></div>)}
                 </div>
               </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent className="w-[90vw] max-w-md rounded-2xl">
+          <DialogHeader><DialogTitle>Send invoices &amp; files</DialogTitle></DialogHeader>
+          {(() => {
+            const target = members.find((member) => member.driverUserId === invoiceMemberId);
+            if (!target) return <p className="text-sm text-muted-foreground">Select a driver first.</p>;
+            return (
+              <div className="space-y-4 pt-3">
+                <form onSubmit={async (event) => { await sendInvoice(event); setSendDialogOpen(false); }} className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Create a driver invoice for {target.profile.name || "this driver"}.</p>
+                  <input value={invoiceTitle} onChange={(event) => setInvoiceTitle(event.target.value)} className="w-full rounded-xl bg-muted p-3 font-semibold" placeholder="Invoice title" />
+                  <button disabled={invoiceBusy} type="submit" className="w-full rounded-xl bg-primary p-3 font-black text-primary-foreground">{invoiceBusy ? "Sending..." : "Send Invoice"}</button>
+                </form>
+                <div className="border-t border-border pt-3">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-4 text-sm font-bold text-primary">
+                    <FileUp size={17} /> Choose file to send
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => { sendFileToMember(target, event); setSendDialogOpen(false); }} />
+                  </label>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={filesHistoryOpen} onOpenChange={setFilesHistoryOpen}>
+        <DialogContent className="w-[92vw] max-w-md rounded-2xl">
+          <DialogHeader><DialogTitle>Files history</DialogTitle></DialogHeader>
+          {(() => {
+            const target = members.find((member) => member.id === detailDriverId);
+            const targetInvoices = target ? invoices.filter((invoice) => invoice.driverUserId === target.driverUserId) : [];
+            const files = target?.profile.sharedFiles || [];
+            return (
+              <div className="space-y-3 pt-2">
+                {files.map((file) => <a key={file.id} href={file.dataUrl} download={file.name} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl bg-muted p-3 text-sm font-bold text-primary"><span className="truncate">{file.name}</span><span className="ml-2 shrink-0 text-xs text-muted-foreground">{file.uploadedAt}</span></a>)}
+                {targetInvoices.map((invoice) => <div key={invoice.id} className="flex items-center justify-between rounded-xl bg-muted p-3 text-sm"><span className="truncate">{invoice.title}</span><span className={`ml-2 shrink-0 text-xs font-bold ${invoice.revokedAt ? "text-rose-300" : "text-emerald-300"}`}>{invoice.revokedAt ? "Revoked" : "Sent"}</span></div>)}
+                {!files.length && !targetInvoices.length && <p className="py-6 text-center text-sm text-muted-foreground">No files or invoices sent yet.</p>}
+              </div>
             );
           })()}
         </DialogContent>
