@@ -153,6 +153,12 @@ Workspace clients should retry authenticated API calls against the known product
 
 **How to apply:** Keep the same-origin request first for normal deployments, then retry only 404/405 responses against the production API origin; do not hide genuine 401/403/404 business errors from the API.
 
+Full workspace JSON saves must be serialized per client and merged server-side for driver-owned records; manual refresh is safer than applying periodic full-state snapshots.
+
+**Why:** An older in-flight owner/driver snapshot can finish after a newer save and remove newly added logs even when each individual request returns 200.
+
+**How to apply:** Queue client writes, row-lock the workspace during read-modify-write, preserve driver records absent from stale owner payloads, and carry explicit deleted-log tombstones for intentional deletions.
+
 FleetX frontend builds require both `PORT` and `BASE_PATH` environment variables; the artifact's production build uses `PORT=23693 BASE_PATH=/`.
 
 **Why:** The Vite config intentionally fails fast when either routing or port configuration is missing, while the configured Vercel build supplies both values.

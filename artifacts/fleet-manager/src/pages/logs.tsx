@@ -1,13 +1,14 @@
 import { Layout } from "@/components/layout";
 import { useStore, WorkLog } from "@/lib/store";
 import { useRef, useState } from "react";
-import { Plus, ClipboardX, BookOpen, Truck as TruckIcon, Pencil, X, Trash2 } from "lucide-react";
+import { Plus, ClipboardX, BookOpen, Truck as TruckIcon, Pencil, X, Trash2, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useRole } from "@/lib/role";
 
 export default function Logs() {
   const { state, dispatch } = useStore();
-  const { role } = useRole();
+  const { role, refreshWorkspace } = useRole();
+  const [refreshing, setRefreshing] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
@@ -139,10 +140,23 @@ export default function Logs() {
     setIsKhataOpen(false);
   };
 
+  const refreshLogs = async () => {
+    setRefreshing(true);
+    try {
+      await refreshWorkspace();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="fm-page-header">
           <h1>Daily Work Entry</h1>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void refreshLogs()} disabled={refreshing} className="fm-icon-button border border-border bg-card text-muted-foreground disabled:opacity-60" aria-label="Refresh logs">
+            <RefreshCw size={20} className={refreshing ? "animate-spin" : ""} />
+          </button>
         <div className="hidden">
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
@@ -222,10 +236,11 @@ export default function Logs() {
             </DialogContent>
           </Dialog>
         </div>
+        </div>
       </div>
       <div className="fm-tab-row">
         <button className={`fm-tab ${activeTab === "new" ? "is-active" : ""}`} onClick={() => setActiveTab("new")}>New Entry</button>
-        <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>History ({state.logs.filter((log) => !khataLogIds.has(log.id)).length})</button>
+         <button className={`fm-tab ${activeTab === "history" ? "is-active" : ""}`} onClick={() => setActiveTab("history")}>{role === "owner" ? "Logs Added" : "History"} ({state.logs.filter((log) => !khataLogIds.has(log.id)).length})</button>
       </div>
       {activeTab === "new" && (
         <div className="px-5 pt-6">

@@ -217,13 +217,11 @@ function AuthenticatedShell() {
       .finally(() => setWorkspaceLoading(false));
   }, [user, session]);
 
-  useEffect(() => {
-    if (!session || !workspace?.role || workspace.role === "blocked" || workspace.role === "removed") return;
-    const timer = window.setInterval(() => {
-      void getWorkspace(session.access_token).then(setWorkspace).catch(() => undefined);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [session, workspace?.role]);
+  const refreshWorkspace = async () => {
+    if (!session) return;
+    const latest = await getWorkspace(session.access_token);
+    setWorkspace(latest);
+  };
 
   if (loading) return <Splash />;
   if (!user || !session) return <Login />;
@@ -271,6 +269,7 @@ function AuthenticatedShell() {
     invoices: workspace.invoices,
     members: workspace.members,
     session,
+    refreshWorkspace,
   };
 
   return (

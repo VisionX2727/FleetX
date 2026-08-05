@@ -32,6 +32,7 @@ export type AppState = {
   settings: Settings;
   maintenanceRequests?: MaintenanceRequest[];
   driverAbsentDates?: string[];
+  deletedLogIds?: string[];
 };
 export type MaintenanceRequest = { id: string; vehicleId: string; driverId: string; date: string; title: string; description?: string; status: "Open" | "Resolved" };
 
@@ -50,6 +51,7 @@ const defaultState: AppState = {
   khataBatches: [],
   settings: defaultSettings,
   maintenanceRequests: [],
+  deletedLogIds: [],
 };
 
 function createEntityId(prefix: string) {
@@ -79,6 +81,7 @@ function normalizeState(value: Partial<AppState>): AppState {
     settings: { ...fresh.settings, ...(value.settings || {}) },
     maintenanceRequests: value.maintenanceRequests || [],
     driverAbsentDates: value.driverAbsentDates || [],
+    deletedLogIds: value.deletedLogIds || [],
   };
 }
 
@@ -142,6 +145,7 @@ export function StoreProvider({
   const resetRequested = useRef(false);
   const syncPending = useRef(false);
   const syncVersion = useRef(0);
+  const syncQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
     let mounted = true;
@@ -176,14 +180,19 @@ export function StoreProvider({
     let started = false;
     const timer = window.setTimeout(() => {
       started = true;
-      const sync = role === "driver" && accessToken
-        ? saveDriverWorkspace(accessToken, state)
-        : role === "owner" && accessToken
-          ? saveOwnerWorkspace(accessToken, state)
-          : supabaseConfigured
-            ? supabase.auth.updateUser({ data: { fleet_manager_data: state } })
-            : Promise.resolve();
-      sync
+      // Keep writes in order. Without this queue, an older request that was
+      // already in flight could finish after a newer request and overwrite it.
+      syncQueue.current = syncQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (role === "driver" && accessToken) {
+            await saveDriverWorkspace(accessToken, state);
+          } else if (role === "owner" && accessToken) {
+            await saveOwnerWorkspace(accessToken, state);
+          } else if (supabaseConfigured) {
+            await supabase.auth.updateUser({ data: { fleet_manager_data: state } });
+          }
+        })
         .catch((error) => {
           console.error("Fleet cloud sync failed", error);
         })
@@ -257,6 +266,7 @@ export function StoreProvider({
               logs: prev.logs.filter(l => l.id !== logId),
               ledgers: prev.ledgers.filter(entry => entry.logId !== logId),
               khataBatches: remainingBatches,
+              deletedLogIds: [...new Set([...(prev.deletedLogIds || []), logId])],
             };
           }
 
@@ -339,6 +349,10 @@ export function StoreProvider({
             fuelRecords: prev.fuelRecords.filter(record => record.driverId !== action.payload),
             notes: prev.notes.filter(note => note.driverId !== action.payload),
             maintenanceRequests: (prev.maintenanceRequests || []).filter(request => request.driverId !== action.payload),
+            deletedLogIds: [...new Set([
+              ...(prev.deletedLogIds || []),
+              ...prev.logs.filter((log) => log.driverId === action.payload).map((log) => log.id),
+            ])],
           };
         
         // Driver Pay Actions

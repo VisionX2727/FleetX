@@ -13,6 +13,7 @@ export type WorkspaceRole = {
   invoices?: WorkspaceResponse["invoices"];
   members?: WorkspaceResponse["members"];
   session: Session;
+  refreshWorkspace: () => Promise<void>;
 };
 
 type RoleContextValue = WorkspaceRole & {
